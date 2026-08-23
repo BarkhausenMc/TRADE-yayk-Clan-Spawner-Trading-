@@ -8,8 +8,46 @@ const {
     TextDisplayBuilder
 } = require('discord.js');
 const constants = require('../config/constants');
+const store = require('../data/store');
 
 module.exports = async function handleSelectMenu(interaction) {
+
+    // === VOUCH STERNE SELECT ===
+    if (interaction.customId === 'vouch_stars') {
+        const trade = store.trades[String(interaction.channel.id)];
+        if (!trade || !trade.claimedBy) {
+            await interaction.reply({ content: '❌ Trade nicht gefunden oder nicht geclaimt.', flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        const rating = interaction.values[0];
+
+        // Prüfen, ob dieser User schon bewertet hat
+        const existingVouch = trade.vouchEntries?.find(v => v.reviewerId === interaction.user.id);
+        if (existingVouch) {
+            await interaction.reply({ content: '❌ Du hast bereits bewertet!', flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        // Modal für Vouch-Text öffnen
+        const vouchModal = new ModalBuilder()
+            .setCustomId(`vouch_modal:${rating}`)
+            .setTitle(`⭐ ${rating} Sterne Bewertung`);
+
+        const vouchTextInput = new TextInputBuilder()
+            .setCustomId('vouch_text')
+            .setLabel('Schreibe deine Bewertung (optional)')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('z.B. Sehr schneller und netter Handel!')
+            .setRequired(false);
+
+        vouchModal.addComponents(new ActionRowBuilder().addComponents(vouchTextInput));
+
+        await interaction.showModal(vouchModal);
+        return;
+    }
+
+    // === SPAWNER SELECT (Ankauf/Verkauf) ===
     if (interaction.customId.startsWith('select_spawner:')) {
         const tradeType = interaction.customId.split(':')[1];
         const spawnerType = interaction.values[0];
@@ -20,7 +58,6 @@ module.exports = async function handleSelectMenu(interaction) {
         if (isStopped) {
             const actionLabel = tradeType === 'ankauf' ? 'ANKAUF' : 'VERKAUF';
 
-            // ⭐ ContainerBuilder statt content nutzen!
             const errorContainer = new ContainerBuilder()
                 .addTextDisplayComponents(
                     new TextDisplayBuilder().setContent(
