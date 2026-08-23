@@ -13,16 +13,22 @@ module.exports = async function handleModal(interaction) {
     if (interaction.customId.startsWith('vouch_modal:')) {
         const trade = store.trades[String(interaction.channel.id)];
         if (!trade) {
-            await interaction.reply({ content: '❌ Trade nicht gefunden.', flags: MessageFlags.Ephemeral });
+            await interaction.reply({ content: '❌ Trade nicht gefunden.', flags: MessageFlags.Ephemeral }).catch(() => {});
             return;
         }
 
-        await interaction.deferUpdate();
+        await interaction.deferUpdate().catch(() => {});
 
         const rating = parseInt(interaction.customId.split(':')[1]);
         const text = interaction.fields.getTextInputValue('vouch_text') || 'Keine Bewertung geschrieben.';
 
         trade.vouchEntries = trade.vouchEntries || [];
+        
+        // Doppelte Bewertung verhindern
+        if (trade.vouchEntries.find(v => v.reviewerId === interaction.user.id)) {
+            return;
+        }
+        
         trade.vouchEntries.push({ reviewerId: interaction.user.id, rating, text, timestamp: Date.now() });
         store.save();
 
@@ -37,7 +43,7 @@ module.exports = async function handleModal(interaction) {
                 .addTextDisplayComponents(new TextDisplayBuilder().setContent(
                     `## ✅ Beide Bewertungen erhalten!\n\nDanke an beide Parteien.\nDas Ticket wird jetzt geschlossen.`
                 ));
-            await interaction.channel.send({ components: [thankContainer], flags: MessageFlags.IsComponentsV2 });
+            await interaction.channel.send({ components: [thankContainer], flags: MessageFlags.IsComponentsV2 }).catch(() => {});
 
             const buttonHandler = require('./buttonHandler');
             await buttonHandler.forceCloseVouchWithChannel(interaction.channel, trade, interaction.guild);
@@ -47,13 +53,16 @@ module.exports = async function handleModal(interaction) {
                 .addTextDisplayComponents(new TextDisplayBuilder().setContent(
                     `## ✅ Bewertung erhalten\n\nDanke für deine **${rating}-Sterne** Bewertung!\nWarte noch auf die Bewertung vom **${remainingRole}**...\n\n⏱️ *Ticket schließt automatisch in 5 Minuten.*`
                 ));
-            await interaction.channel.send({ components: [waitContainer], flags: MessageFlags.IsComponentsV2 });
+            await interaction.channel.send({ components: [waitContainer], flags: MessageFlags.IsComponentsV2 }).catch(() => {});
         }
         return;
     }
 
     // === TRADE MODAL ===
     if (!interaction.customId.startsWith('trade_modal:')) return;
+
+    // ⚡ SOFORT deferReply — bevor irgendetwas anderes gemacht wird!
+    const deferred = await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
 
     const parts = interaction.customId.split(':');
     const tradeType = parts[1];
@@ -64,11 +73,13 @@ module.exports = async function handleModal(interaction) {
     const parsedAmount = parseInt(amount);
 
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-        await interaction.reply({ content: '❌ Bitte gib eine gültige Anzahl ein (z.B. 3)!', flags: MessageFlags.Ephemeral });
+        if (deferred) {
+            await interaction.editReply({ content: '❌ Bitte gib eine gültige Anzahl ein!' }).catch(() => {});
+        } else {
+            await interaction.reply({ content: '❌ Bitte gib eine gültige Anzahl ein!', flags: MessageFlags.Ephemeral }).catch(() => {});
+        }
         return;
     }
-
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     store.tradeCounters[interaction.user.id] = (store.tradeCounters[interaction.user.id] || 0) + 1;
     const handNummer = store.tradeCounters[interaction.user.id];
@@ -80,12 +91,22 @@ module.exports = async function handleModal(interaction) {
     const pricePerUnit = constants.prices[spawnerType][tradeType];
     const totalPrice = pricePerUnit * parsedAmount;
 
-    const thread = await interaction.channel.threads.create({
-        name: `${emoji} ${action} - ${spawnerEmoji} ${spawnerType} - 📦 Menge: ${amount} - #${handNummer}`,
-        type: ChannelType.PrivateThread, invitable: false
-    });
+    let thread;
+    try {
+        thread = await interaction.channel.threads.create({
+            name: `${emoji} ${action} - ${spawnerEmoji} ${spawnerType} - 📦 Menge: ${amount} - #${handNummer}`,
+            type: ChannelType.PrivateThread,
+            invitable: false
+        });
+    } catch (err) {
+        console.error('❌ Fehler beim Thread erstellen:', err.message);
+        if (deferred) {
+            await interaction.editReply({ content: '❌ Fehler beim Erstellen des Tickets!' }).catch(() => {});
+        }
+        return;
+    }
 
-    await thread.members.add(interaction.user.id);
+    await thread.members.add(interaction.user.id).catch(() => {});
 
     if (constants.TRADER_ROLE_ID) {
         try {
@@ -116,6 +137,7 @@ module.exports = async function handleModal(interaction) {
         } catch (err) { console.log('Fehler beim Trader-Ping:', err.message); }
     }
 
+    // Log
     if (constants.LOG_CHANNEL_ID) {
         try {
             const logContainer = new ContainerBuilder()
@@ -127,13 +149,17 @@ module.exports = async function handleModal(interaction) {
         } catch (err) { console.log('Fehler beim Loggen:', err.message); }
     }
 
+    // ⚡ TRADE SPEICHERN — DAS IST DAS WICHTIGSTE!
     tradeData.messageId = tradeMsg.id;
     store.trades[String(thread.id)] = tradeData;
     store.save();
     console.log('✅ Trade gespeichert unter ID:', String(thread.id));
+    console.log('📦 Verfügbare Trade Keys:', Object.keys(store.trades));
 
-    await interaction.editReply({
-        components: [new ContainerBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent(`✅ Dein Trade-Ticket wurde erstellt: <#${thread.id}>`))],
-        flags: MessageFlags.IsComponentsV2
-    });
+    if (deferred) {
+        await interaction.editReply({
+            components: [new ContainerBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent(`✅ Dein Trade-Ticket wurde erstellt: <#${thread.id}>`))],
+            flags: MessageFlags.IsComponentsV2
+        }).catch(() => {});
+    }
 };
