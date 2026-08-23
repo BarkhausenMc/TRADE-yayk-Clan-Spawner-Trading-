@@ -65,31 +65,12 @@ function saveData() {
     }
 }
 
+// === PRICE FUNCTIONS ===
 function getPrice(spawnerName, type) {
     if (data.prices && data.prices[spawnerName] && data.prices[spawnerName][type] !== undefined) {
         return data.prices[spawnerName][type];
     }
     return constants.prices[spawnerName]?.[type] || 0;
-}
-
-function recordPriceChange(spawnerName, type, oldValue, newValue, userId) {
-    data.priceChanges.push({
-        spawner: spawnerName,
-        type: type,
-        oldValue: oldValue,
-        newValue: newValue,
-        userId: userId,
-        timestamp: Date.now()
-    });
-    if (data.priceChanges.length > 50) {
-        data.priceChanges = data.priceChanges.slice(-50);
-    }
-    saveData();
-}
-
-function getRecentPriceChanges(minutes) {
-    const cutoff = Date.now() - (minutes * 60 * 1000);
-    return data.priceChanges.filter(c => c.timestamp >= cutoff);
 }
 
 function setPrice(spawnerName, type, value) {
@@ -123,6 +104,27 @@ function togglePrice(spawnerName, type) {
     return data.prices[spawnerName][type];
 }
 
+function recordPriceChange(spawnerName, type, oldValue, newValue, userId) {
+    data.priceChanges.push({
+        spawner: spawnerName,
+        type: type,
+        oldValue: oldValue,
+        newValue: newValue,
+        userId: userId,
+        timestamp: Date.now()
+    });
+    if (data.priceChanges.length > 50) {
+        data.priceChanges = data.priceChanges.slice(-50);
+    }
+    saveData();
+}
+
+function getRecentPriceChanges(minutes) {
+    const cutoff = Date.now() - (minutes * 60 * 1000);
+    return data.priceChanges.filter(c => c.timestamp >= cutoff);
+}
+
+// === INVENTORY FUNCTIONS ===
 function getInventory(spawnerName) {
     return data.inventory[spawnerName] || 0;
 }
@@ -139,6 +141,7 @@ function getAllInventory() {
     return data.inventory || {};
 }
 
+// === PANEL FUNCTIONS ===
 function getPanelMessageId() { return data.panelMessageId || null; }
 function setPanelMessageId(messageId) { data.panelMessageId = messageId; saveData(); }
 function getPanelChannelId() { return data.panelChannelId || null; }
@@ -161,7 +164,7 @@ function buildPricePanel() {
     const stockLines = Object.entries(constants.prices).map(([name]) => {
         const stock = getInventory(name);
         const emoji = constants.spawnerEmojis[name] || '📦';
-        return `**${emoji} ${name}:** \`${stock} Stk.\``;
+        return `${emoji} ${name}: \`${stock}\` Stück`;
     }).join('\n');
 
     const container = new ContainerBuilder()
