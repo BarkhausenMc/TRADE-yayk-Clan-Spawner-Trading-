@@ -21,7 +21,6 @@ const store = require('./src/data/store');
 const handleButton = require('./src/handlers/buttonHandler');
 const handleSelectMenu = require('./src/handlers/selectMenuHandler');
 const handleModal = require('./src/handlers/modalHandler');
-const { handleVouchSelect, handleVouchModal } = require('./src/handlers/vouchHandler');
 
 // ⭐ COMMANDS AUS ORDNER LADEN
 const commandMap = new Map();
@@ -60,7 +59,6 @@ const commands = [
         .setDescription('Zeigt die Top 10 Trader nach abgeschlossenen Trades')
 ];
 
-// ⭐ NEUE COMMANDS HINZUFÜGEN
 for (const cmd of commandMap.values()) {
     commands.push(cmd.data);
 }
@@ -101,14 +99,12 @@ client.on('interactionCreate', async (interaction) => {
         // ==========================================
         if (interaction.isChatInputCommand()) {
 
-            // ⭐ EXTERNE COMMANDS (setprice, toggletrade, announce)
             if (commandMap.has(interaction.commandName)) {
                 const command = commandMap.get(interaction.commandName);
                 await command.execute(interaction);
                 return;
             }
 
-            // --- /setup spawner ---
             if (interaction.commandName === 'setup') {
                 if (interaction.options.getSubcommand() === 'spawner') {
                     if (!interaction.memberPermissions.has('Administrator')) {
@@ -118,7 +114,6 @@ client.on('interactionCreate', async (interaction) => {
 
                     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-                    // Alte Panels löschen
                     try {
                         const recentMessages = await interaction.channel.messages.fetch({ limit: 20 });
                         for (const msg of recentMessages.values()) {
@@ -137,16 +132,12 @@ client.on('interactionCreate', async (interaction) => {
                         console.log('Fehler beim Aufräumen alter Panels:', err.message);
                     }
 
-                    // ⭐ PANEL ÜBER store.buildPricePanel() ERSTELLEN
                     const components = store.buildPricePanel();
-
                     const panelMsg = await interaction.channel.send({
                         components,
                         flags: MessageFlags.IsComponentsV2
                     });
 
-                    // ⭐ PANEL MESSAGE ID SPEICHERN
-                    store.setPanelMessageId(panelMsg.id);
                     store.setPanelMessageId(panelMsg.id);
                     store.setPanelChannelId(interaction.channel.id);
                     await interaction.editReply({ content: '✅ Spawner Trading Panel gesendet!' });
@@ -154,7 +145,6 @@ client.on('interactionCreate', async (interaction) => {
                 }
             }
 
-            // --- /trader-stats ---
             if (interaction.commandName === 'trader-stats') {
                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
                 
@@ -191,7 +181,6 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
-            // --- /trader-top ---
             if (interaction.commandName === 'trader-top') {
                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
                 
@@ -229,11 +218,7 @@ client.on('interactionCreate', async (interaction) => {
         // ==========================================
         // BUTTONS, SELECT MENUS, MODALS
         // ==========================================
-        if (interaction.isStringSelectMenu() && interaction.customId === 'vouch_stars') {
-            await handleVouchSelect(interaction);
-        } else if (interaction.isModalSubmit() && interaction.customId.startsWith('vouch_modal:')) {
-            await handleVouchModal(interaction);
-        } else if (interaction.isButton()) {
+        if (interaction.isButton()) {
             await handleButton(interaction);
         } else if (interaction.isStringSelectMenu()) {
             await handleSelectMenu(interaction);
