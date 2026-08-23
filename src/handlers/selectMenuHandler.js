@@ -1,35 +1,30 @@
 const {
-    ActionRowBuilder,
-    ModalBuilder,
-    TextInputBuilder,
-    TextInputStyle,
-    MessageFlags,
-    ContainerBuilder,
-    TextDisplayBuilder
+    ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
+    MessageFlags, ContainerBuilder, TextDisplayBuilder
 } = require('discord.js');
 const constants = require('../config/constants');
 const store = require('../data/store');
 
 module.exports = async function handleSelectMenu(interaction) {
 
-    // === VOUCH STERNE SELECT ===
     if (interaction.customId === 'vouch_stars') {
         const trade = store.trades[String(interaction.channel.id)];
-        if (!trade || !trade.claimedBy) {
-            await interaction.reply({ content: '❌ Trade nicht gefunden oder nicht geclaimt.', flags: MessageFlags.Ephemeral });
+        if (!trade) {
+            await interaction.reply({ content: '❌ Trade nicht gefunden.', flags: MessageFlags.Ephemeral });
+            return;
+        }
+        if (!trade.claimedBy) {
+            await interaction.reply({ content: '❌ Trade muss erst geclaimt werden.', flags: MessageFlags.Ephemeral });
             return;
         }
 
-        const rating = interaction.values[0];
-
-        // Prüfen, ob dieser User schon bewertet hat
-        const existingVouch = trade.vouchEntries?.find(v => v.reviewerId === interaction.user.id);
-        if (existingVouch) {
+        const existing = trade.vouchEntries?.find(v => v.reviewerId === interaction.user.id);
+        if (existing) {
             await interaction.reply({ content: '❌ Du hast bereits bewertet!', flags: MessageFlags.Ephemeral });
             return;
         }
 
-        // Modal für Vouch-Text öffnen
+        const rating = interaction.values[0];
         const vouchModal = new ModalBuilder()
             .setCustomId(`vouch_modal:${rating}`)
             .setTitle(`⭐ ${rating} Sterne Bewertung`);
@@ -42,36 +37,26 @@ module.exports = async function handleSelectMenu(interaction) {
             .setRequired(false);
 
         vouchModal.addComponents(new ActionRowBuilder().addComponents(vouchTextInput));
-
         await interaction.showModal(vouchModal);
         return;
     }
 
-    // === SPAWNER SELECT (Ankauf/Verkauf) ===
     if (interaction.customId.startsWith('select_spawner:')) {
         const tradeType = interaction.customId.split(':')[1];
         const spawnerType = interaction.values[0];
-
         const priceInfo = constants.prices[spawnerType];
         const isStopped = !priceInfo || priceInfo[tradeType] === 'Stop' || priceInfo[tradeType] === undefined;
 
         if (isStopped) {
             const actionLabel = tradeType === 'ankauf' ? 'ANKAUF' : 'VERKAUF';
-
             const errorContainer = new ContainerBuilder()
-                .addTextDisplayComponents(
-                    new TextDisplayBuilder().setContent(
-                        `## ❌ • ${spawnerType} ${actionLabel} derzeit nicht verfügbar\n\n` +
-                        `Der **${spawnerType}** Spawner ${actionLabel.toLowerCase()} ist aktuell **gestoppt**.\n` +
-                        `Du bekommst ein **Ping**, wenn sich etwas bei unsere **Preise/An- und Verkauf** ändert.\n` +
-                        '||** ℹ️ Du bekommst den Ping nur, wenn du die `Spawner Price` Rolle hast. **|| '
-                    )
-                );
-
-            await interaction.update({
-                components: [errorContainer],
-                flags: MessageFlags.IsComponentsV2
-            });
+                .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+                    `## ❌ • ${spawnerType} ${actionLabel} derzeit nicht verfügbar\n\n` +
+                    `Der **${spawnerType}** Spawner ${actionLabel.toLowerCase()} ist aktuell **gestoppt**.\n` +
+                    `Du bekommst ein **Ping**, wenn sich etwas bei unsere **Preise/An- und Verkauf** ändert.\n` +
+                    '||** ℹ️ Du bekommst den Ping nur, wenn du die `Spawner Price` Rolle hast. **||'
+                ));
+            await interaction.update({ components: [errorContainer], flags: MessageFlags.IsComponentsV2 });
             return;
         }
 
@@ -84,24 +69,18 @@ module.exports = async function handleSelectMenu(interaction) {
             .setTitle(`${emoji} ${spawnerType} ${actionWord}`);
 
         const ingameNameInput = new TextInputBuilder()
-            .setCustomId('ingame_name')
-            .setLabel('Wie lautet dein Ingame-Name?')
-            .setStyle(TextInputStyle.Short)
-            .setPlaceholder('z.B. Steve')
-            .setRequired(true);
+            .setCustomId('ingame_name').setLabel('Wie lautet dein Ingame-Name?')
+            .setStyle(TextInputStyle.Short).setPlaceholder('z.B. Steve').setRequired(true);
 
         const amountInput = new TextInputBuilder()
             .setCustomId('amount')
             .setLabel(tradeType === 'ankauf' ? 'Wie viele Spawner möchtest du kaufen?' : 'Wie viele Spawner möchtest du verkaufen?')
-            .setStyle(TextInputStyle.Short)
-            .setPlaceholder('z.B. 3')
-            .setRequired(true);
+            .setStyle(TextInputStyle.Short).setPlaceholder('z.B. 3').setRequired(true);
 
         modal.addComponents(
             new ActionRowBuilder().addComponents(ingameNameInput),
             new ActionRowBuilder().addComponents(amountInput)
         );
-
         await interaction.showModal(modal);
     }
 };
