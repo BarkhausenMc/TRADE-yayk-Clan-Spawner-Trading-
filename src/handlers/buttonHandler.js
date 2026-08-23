@@ -46,51 +46,28 @@ async function logTrade(guild, trade, status) {
 
 async function forceCloseVouchWithChannel(channel, trade, guild) {
     try {
-        const vouchChannel = guild.channels.cache.get(constants.VOUCH_CHANNEL_ID);
-        if (vouchChannel) {
-            const customerVouch = trade.vouchEntries?.find(v => v.reviewerId === trade.kundeId);
-            const traderVouch = trade.vouchEntries?.find(v => v.reviewerId === trade.claimedBy);
+        if (trade.vouchEntries && trade.vouchEntries.length > 0) {
+            const vouchChannel = guild.channels.cache.get(constants.VOUCH_CHANNEL_ID);
+            if (vouchChannel) {
+                let content = `## ${trade.emoji} • Handel #${trade.handNummer}\n\n`;
+                content += `**${trade.emoji} Aktion:** ${trade.action}\n`;
+                content += `**${trade.spawnerEmoji} Spawner:** ${trade.spawnerType}\n`;
+                content += `**📦 Menge:** ${trade.amount}\n`;
+                content += `**💰 Gesamtpreis:** ${trade.totalPrice.toFixed(1)}M\n\n`;
+                content += `**👤 Kunde:** <@${trade.kundeId}>\n`;
+                content += `**🤝 Trader:** <@${trade.claimedBy}>\n\n`;
 
-            const customerStars = customerVouch ? '⭐'.repeat(customerVouch.rating) : '';
-            const traderStars = traderVouch ? '⭐'.repeat(traderVouch.rating) : '';
+                for (const vouch of trade.vouchEntries) {
+                    const role = vouch.reviewerId === trade.kundeId ? 'Kunde' : 'Trader';
+                    const stars = '⭐'.repeat(vouch.rating);
+                    content += `### 📝 Bewertung von ${role}\n${stars} (${vouch.rating}/5)\n> ${vouch.text}\n\n`;
+                }
 
-            const vouchContainer = new ContainerBuilder()
-                .addTextDisplayComponents(
-                    new TextDisplayBuilder().setContent(
-                        `## ✅ Handel abgeschlossen • #${trade.handNummer}\n\n` +
-                        `**👤 Kunde:** <@${trade.kundeId}>\n` +
-                        `**🤝 Trader:** <@${trade.claimedBy || '-'}>`
-                    )
-                )
-                .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
-                .addTextDisplayComponents(
-                    new TextDisplayBuilder().setContent(
-                        `**${trade.emoji} Geschäft:** ${trade.action} ||(aus Sicht des Kunden)||\n` +
-                        `**${trade.spawnerEmoji} Spawner:** ${trade.spawnerType}\n` +
-                        `**📦 Menge:** ${trade.amount}\n` +
-                        `**💰 Gesamtpreis:** ${trade.totalPrice.toFixed(1)}M\n`
-                    )
-                )
-                .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
-                .addTextDisplayComponents(
-                    new TextDisplayBuilder().setContent(
-                        `### 📝 Bewertung von Kunde → Trader\n` +
-                        (customerVouch
-                            ? `${customerStars} (${customerVouch.rating}/5)\n> ${customerVouch.text}`
-                            : `— Keine Bewertung abgegeben`)
-                    )
-                )
-                .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
-                .addTextDisplayComponents(
-                    new TextDisplayBuilder().setContent(
-                        `### 📝 Bewertung von Trader → Kunde\n` +
-                        (traderVouch
-                            ? `${traderStars} (${traderVouch.rating}/5)\n> ${traderVouch.text}`
-                            : `— Keine Bewertung abgegeben`)
-                    )
-                );
+                const vouchContainer = new ContainerBuilder()
+                    .addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
 
-            await vouchChannel.send({ components: [vouchContainer], flags: MessageFlags.IsComponentsV2 });
+                await vouchChannel.send({ components: [vouchContainer], flags: MessageFlags.IsComponentsV2 });
+            }
         }
 
         // Stats updaten
@@ -114,16 +91,17 @@ async function forceCloseVouchWithChannel(channel, trade, guild) {
             store.save();
         }
 
-        // === NEU: BESTAND AKTUALISIEREN ===
-        // Ankauf = Wir (der Server) kaufen dem Spieler ab → Bestand ERHÖHEN
-        // Verkauf = Wir (der Server) verkaufen dem Spieler → Bestand VERRINGERN
+        // === BESTAND AKTUALISIEREN ===
+        // Ankauf = Spieler verkauft UNS Spawner → Bestand ERHÖHEN
+        // Verkauf = Spieler kauft UNS Spawner → Bestand VERRINGERN
         const inventoryDelta = trade.action === 'Ankauf' ? trade.amount : -trade.amount;
         store.adjustInventory(trade.spawnerType, inventoryDelta);
         console.log(`📦 Bestand aktualisiert: ${trade.spawnerType} ${inventoryDelta > 0 ? '+' : ''}${inventoryDelta} (Trade #${trade.handNummer})`);
 
-        // === NEU: PRICE PANEL AUTO-UPDATE ===
+        // === PANEL AUTO-UPDATE ===
         try {
             await store.updatePricePanel(global.client);
+            console.log('✅ Panel nach Trade aktualisiert!');
         } catch (err) {
             console.log('⚠️ Panel auto-update fehlgeschlagen:', err.message);
         }
@@ -146,7 +124,6 @@ async function forceCloseVouchWithChannel(channel, trade, guild) {
         console.error('Error in forceCloseVouchWithChannel:', err.message);
     }
 }
-
 module.exports = async function handleButton(interaction) {
 
     // === CLAIM ===
