@@ -46,6 +46,7 @@ async function logTrade(guild, trade, status) {
 
 async function forceCloseVouchWithChannel(channel, trade, guild) {
     try {
+        // 1. Vouches ins Vouch-Channel posten
         if (trade.vouchEntries && trade.vouchEntries.length > 0) {
             const vouchChannel = guild.channels.cache.get(constants.VOUCH_CHANNEL_ID);
             if (vouchChannel) {
@@ -70,7 +71,7 @@ async function forceCloseVouchWithChannel(channel, trade, guild) {
             }
         }
 
-        // Stats updaten
+        // 2. Stats updaten
         if (trade.claimedBy && store.traderStats) {
             if (!store.traderStats[trade.claimedBy]) {
                 store.traderStats[trade.claimedBy] = {
@@ -91,23 +92,33 @@ async function forceCloseVouchWithChannel(channel, trade, guild) {
             store.save();
         }
 
-        // === BESTAND AKTUALISIEREN ===
-        // Ankauf = Spieler verkauft UNS Spawner → Bestand ERHÖHEN
-        // Verkauf = Spieler kauft UNS Spawner → Bestand VERRINGERN
+        // 3. === BESTAND AKTUALISIEREN (WICHTIG!) ===
+        // Logik:
+        // - "Ankauf": Der Spieler verkauft UNS Spawner -> Unser Bestand ERHÖHT sich (+)
+        // - "Verkauf": Der Spieler kauft UNS Spawner -> Unser Bestand VERRINGERT sich (-)
         const inventoryDelta = trade.action === 'Ankauf' ? trade.amount : -trade.amount;
-        store.adjustInventory(trade.spawnerType, inventoryDelta);
-        console.log(`📦 Bestand aktualisiert: ${trade.spawnerType} ${inventoryDelta > 0 ? '+' : ''}${inventoryDelta} (Trade #${trade.handNummer})`);
-
-        // === PANEL AUTO-UPDATE ===
-        try {
-            await store.updatePricePanel(global.client);
-            console.log('✅ Panel nach Trade aktualisiert!');
-        } catch (err) {
-            console.log('⚠️ Panel auto-update fehlgeschlagen:', err.message);
+        
+        // Sicherstellen, dass der Spawner-Typ in constants existiert
+        if (constants.prices[trade.spawnerType]) {
+            store.adjustInventory(trade.spawnerType, inventoryDelta);
+            console.log(`📦 [BESTAND] ${trade.spawnerType}: ${inventoryDelta > 0 ? '+' : ''}${inventoryDelta} (Trade #${trade.handNummer}) | Neuer Wert: ${store.getInventory(trade.spawnerType)}`);
+        } else {
+            console.warn(`⚠️ [BESTAND] Unbekannter Spawner-Typ: ${trade.spawnerType}`);
         }
 
+        // 4. === PANEL AUTO-UPDATE ===
+        // Das Panel muss aktualisiert werden, um die neuen Zahlen zu zeigen
+        try {
+            await store.updatePricePanel(global.client);
+            console.log('✅ [PANEL] Panel nach Trade aktualisiert!');
+        } catch (err) {
+            console.error('❌ [PANEL] Panel update fehlgeschlagen:', err.message);
+        }
+
+        // 5. Loggen
         await logTrade(guild, trade, `✅ ABGESCHLOSSEN (${(trade.vouches || []).length}/2 Bewertungen)`);
 
+        // 6. Countdown + Löschen
         await channel.send({ content: `⏳ Dieses Ticket wird in **5 Sekunden** gelöscht...` });
 
         setTimeout(async () => {
@@ -115,13 +126,14 @@ async function forceCloseVouchWithChannel(channel, trade, guild) {
                 await channel.delete();
                 delete store.trades[String(channel.id)];
                 store.save();
+                console.log(`✅ [DELETE] Ticket ${channel.id} gelöscht.`);
             } catch (err) {
-                console.log('Fehler beim Löschen:', err.message);
+                console.error('❌ [DELETE] Fehler beim Löschen:', err.message);
             }
         }, 5000);
 
     } catch (err) {
-        console.error('Error in forceCloseVouchWithChannel:', err.message);
+        console.error('❌ [ERROR] Error in forceCloseVouchWithChannel:', err.message);
     }
 }
 module.exports = async function handleButton(interaction) {
