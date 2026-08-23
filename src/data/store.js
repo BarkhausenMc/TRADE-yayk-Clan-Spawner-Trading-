@@ -141,14 +141,28 @@ function buildPricePanel() {
 async function updatePricePanel(client) {
     const messageId = getPanelMessageId();
     const channelId = getPanelChannelId();
-    if (!messageId || !channelId) { console.log('⚠️ Panel Update übersprungen: IDs fehlen.'); return; }
+    
+    if (!messageId || !channelId) return;
+    
     try {
         const channel = await client.channels.fetch(channelId);
         if (!channel) return;
+        
         const msg = await channel.messages.fetch(messageId);
-        await msg.edit({ components: buildPricePanel(), flags: MessageFlags.IsComponentsV2 });
+        const components = buildPricePanel();
+        await msg.edit({ components, flags: MessageFlags.IsComponentsV2 });
         console.log('✅ Price Panel auto-updated!');
-    } catch (err) { console.log('❌ Panel update fehlgeschlagen:', err.message); }
+    } catch (err) {
+        // Wenn Message nicht gefunden -> Neues Panel erstellen
+        console.log('⚠️ Panel nicht gefunden, erstelle neues...');
+        const channel = await client.channels.fetch(channelId);
+        if (channel) {
+            const components = buildPricePanel();
+            const newMsg = await channel.send({ components, flags: MessageFlags.IsComponentsV2 });
+            store.setPanelMessageId(newMsg.id);
+            console.log('✅ Neues Panel erstellt!');
+        }
+    }
 }
 
 loadData();
