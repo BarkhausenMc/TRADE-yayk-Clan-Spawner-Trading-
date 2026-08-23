@@ -58,7 +58,7 @@ async function forceCloseVouchWithChannel(channel, trade, guild) {
             store.save();
         }
 
-        const inventoryDelta = trade.action === 'Ankauf' ? trade.amount : -trade.amount;
+        const inventoryDelta = trade.action === 'Ankauf' ? -trade.amount : trade.amount;
         console.log(`📦 Bestand: ${trade.spawnerType} ${inventoryDelta > 0 ? '+' : ''}${inventoryDelta}`);
         store.adjustInventory(trade.spawnerType, inventoryDelta);
         console.log(`📦 Neuer Wert: ${store.getInventory(trade.spawnerType)}`);
