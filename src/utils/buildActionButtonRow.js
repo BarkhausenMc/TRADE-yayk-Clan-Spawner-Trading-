@@ -5,7 +5,7 @@ module.exports = function buildActionButtonRow(data) {
     if (data.awaitingVouch) return null;
 
     if (data.claimedBy) {
-        // ✅ CLAIMED: Als angekauft markieren + Freigeben + Abbrechen
+        // Geclaimt → [Als angekauft markieren] [Freigeben] [Abbrechen]
         return new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId('complete')
@@ -24,7 +24,7 @@ module.exports = function buildActionButtonRow(data) {
                 .setEmoji('🗑️')
         );
     } else {
-        // 🔓 UNCLAIMED: Claim + Abbrechen
+        // Nicht geclaimt → [Claim] [Abbrechen]
         return new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId('claim')
