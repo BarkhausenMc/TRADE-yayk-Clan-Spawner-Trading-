@@ -60,7 +60,6 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        // Permission-Check
         if (!interaction.member.roles.cache.has(constants.TRADER_ROLE_ID)) {
             await interaction.reply({ content: '❌ Nur Trader dürfen den Bestand verwalten.', flags: MessageFlags.Ephemeral });
             return;
@@ -68,7 +67,6 @@ module.exports = {
 
         const subcommand = interaction.options.getSubcommand();
 
-        // === ANZEIGEN ===
         if (subcommand === 'anzeigen') {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -98,7 +96,6 @@ module.exports = {
             return;
         }
 
-        // === HINZUFUEGEN ===
         if (subcommand === 'hinzufuegen') {
             const spawner = interaction.options.getString('spawner');
             const menge = interaction.options.getInteger('menge');
@@ -109,7 +106,6 @@ module.exports = {
             const newStock = store.getInventory(spawner);
             const emoji = constants.spawnerEmojis[spawner] || '📦';
 
-            // Panel auto-update
             try {
                 await store.updatePricePanel(global.client);
             } catch (err) {
@@ -130,7 +126,6 @@ module.exports = {
             return;
         }
 
-        // === ABZIEHEN ===
         if (subcommand === 'abziehen') {
             const spawner = interaction.options.getString('spawner');
             const menge = interaction.options.getInteger('menge');
@@ -147,7 +142,6 @@ module.exports = {
             const newStock = store.getInventory(spawner);
             const emoji = constants.spawnerEmojis[spawner] || '📦';
 
-            // Panel auto-update
             try {
                 await store.updatePricePanel(global.client);
             } catch (err) {

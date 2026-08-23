@@ -46,8 +46,9 @@ async function logTrade(guild, trade, status) {
 
 async function forceCloseVouchWithChannel(channel, trade, guild) {
     try {
-        console.log(`🔍 [DEBUG] forceCloseVouchWithChannel aufgerufen! Trade: #${trade.handNummer}, Spawner: ${trade.spawnerType}, Action: ${trade.action}, Amount: ${trade.amount}`);
-        // 1. Vouches ins Vouch-Channel posten
+        console.log(`🔍 forceCloseVouchWithChannel START | Trade #${trade.handNummer} | Type: ${trade.action} | Spawner: ${trade.spawnerType} | Amount: ${trade.amount}`);
+
+        // 1. Vouches posten
         if (trade.vouchEntries && trade.vouchEntries.length > 0) {
             const vouchChannel = guild.channels.cache.get(constants.VOUCH_CHANNEL_ID);
             if (vouchChannel) {
@@ -91,35 +92,29 @@ async function forceCloseVouchWithChannel(channel, trade, guild) {
                 stats.starCount += 1;
             }
             store.save();
+            console.log(`📊 Stats aktualisiert für ${trade.claimedBy}`);
         }
 
-        // 3. === BESTAND AKTUALISIEREN (WICHTIG!) ===
-        // Logik:
-        // - "Ankauf": Der Spieler verkauft UNS Spawner -> Unser Bestand ERHÖHT sich (+)
-        // - "Verkauf": Der Spieler kauft UNS Spawner -> Unser Bestand VERRINGERT sich (-)
+        // 3. BESTAND AKTUALISIEREN
         const inventoryDelta = trade.action === 'Ankauf' ? trade.amount : -trade.amount;
+        console.log(`📦 Versuche Bestand zu aktualisieren: ${trade.spawnerType} ${inventoryDelta > 0 ? '+' : ''}${inventoryDelta}`);
         
-        // Sicherstellen, dass der Spawner-Typ in constants existiert
-        if (constants.prices[trade.spawnerType]) {
-            store.adjustInventory(trade.spawnerType, inventoryDelta);
-            console.log(`📦 [BESTAND] ${trade.spawnerType}: ${inventoryDelta > 0 ? '+' : ''}${inventoryDelta} (Trade #${trade.handNummer}) | Neuer Wert: ${store.getInventory(trade.spawnerType)}`);
-        } else {
-            console.warn(`⚠️ [BESTAND] Unbekannter Spawner-Typ: ${trade.spawnerType}`);
-        }
+        store.adjustInventory(trade.spawnerType, inventoryDelta);
+        console.log(`📦 adjustInventory aufgerufen! Neuer Wert: ${store.getInventory(trade.spawnerType)}`);
 
-        // 4. === PANEL AUTO-UPDATE ===
-        // Das Panel muss aktualisiert werden, um die neuen Zahlen zu zeigen
+        // 4. PANEL UPDATE
+        console.log(`🖼️ Versuche Panel zu aktualisieren...`);
         try {
             await store.updatePricePanel(global.client);
-            console.log('✅ [PANEL] Panel nach Trade aktualisiert!');
+            console.log(`✅ Panel aktualisiert!`);
         } catch (err) {
-            console.error('❌ [PANEL] Panel update fehlgeschlagen:', err.message);
+            console.error(`❌ Panel update fehlgeschlagen:`, err.message);
         }
 
-        // 5. Loggen
+        // 5. Log
         await logTrade(guild, trade, `✅ ABGESCHLOSSEN (${(trade.vouches || []).length}/2 Bewertungen)`);
 
-        // 6. Countdown + Löschen
+        // 6. Countdown + Delete
         await channel.send({ content: `⏳ Dieses Ticket wird in **5 Sekunden** gelöscht...` });
 
         setTimeout(async () => {
@@ -127,16 +122,17 @@ async function forceCloseVouchWithChannel(channel, trade, guild) {
                 await channel.delete();
                 delete store.trades[String(channel.id)];
                 store.save();
-                console.log(`✅ [DELETE] Ticket ${channel.id} gelöscht.`);
+                console.log(`✅ Ticket ${channel.id} gelöscht.`);
             } catch (err) {
-                console.error('❌ [DELETE] Fehler beim Löschen:', err.message);
+                console.error(`❌ Delete error:`, err.message);
             }
         }, 5000);
 
     } catch (err) {
-        console.error('❌ [ERROR] Error in forceCloseVouchWithChannel:', err.message);
+        console.error('❌ Error in forceCloseVouchWithChannel:', err.message);
     }
 }
+
 module.exports = async function handleButton(interaction) {
 
     // === CLAIM ===
@@ -300,20 +296,22 @@ module.exports = async function handleButton(interaction) {
         return;
     }
 
-    // === ABBRUCH BUTTON ===
+    // === ABBRUCH ===
     if (interaction.customId === 'abbruch') {
         const channelIdStr = String(interaction.channelId);
         const trade = findTrade(channelIdStr);
 
         if (!trade) {
-            await interaction.reply({
-                content: '❌ Trade nicht gefunden oder bereits geschlossen.',
-                flags: MessageFlags.Ephemeral
-            });
+            try {
+                await interaction.reply({
+                    content: '❌ Trade nicht gefunden oder bereits geschlossen.',
+                    flags: MessageFlags.Ephemeral
+                });
+            } catch (e) {
+                console.warn('Abbruch reply failed:', e.message);
+            }
             return;
         }
-
-        await interaction.deferUpdate();
 
         const timeout = vouchTimeouts.get(channelIdStr);
         if (timeout) { clearTimeout(timeout); vouchTimeouts.delete(channelIdStr); }
@@ -321,27 +319,50 @@ module.exports = async function handleButton(interaction) {
         trade.cancelled = true;
         store.save();
 
+        await interaction.deferUpdate();
+
         try {
             await updateTradeMessage(interaction.channel, trade);
         } catch (err) {
             console.error('updateTradeMessage error (abbruch):', err.message);
         }
 
-        const abbruchContainer = new ContainerBuilder()
-            .addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(
-                    `## ❌ Trade abgebrochen\n\n` +
-                    `Der Handel #${trade.handNummer} wurde von <@${interaction.user.id}> abgebrochen.\n` +
-                    `Das Ticket wird in **5 Sekunden** gelöscht...`
-                )
-            );
+        try {
+            const abbruchContainer = new ContainerBuilder()
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `## ❌ Trade abgebrochen\n\n` +
+                        `Der Handel #${trade.handNummer} wurde von <@${interaction.user.id}> abgebrochen.\n` +
+                        `Das Ticket wird gelöscht.`
+                    )
+                );
 
-        await interaction.channel.send({ components: [abbruchContainer], flags: MessageFlags.IsComponentsV2 });
+            await interaction.channel.send({ components: [abbruchContainer], flags: MessageFlags.IsComponentsV2 });
 
-        await interaction.followUp({
-            content: `✅ Deine Anfrage wurde verarbeitet. Das Ticket wird jetzt geschlossen.`,
-            flags: MessageFlags.Ephemeral
-        });
+            const countdownContainer = new ContainerBuilder()
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `## ⏳ Ticket wird gelöscht\n\n` +
+                        `Dieses Ticket wird in **5 Sekunden** gelöscht...`
+                    )
+                );
+
+            await interaction.channel.send({ components: [countdownContainer], flags: MessageFlags.IsComponentsV2 });
+
+            const confirmationContainer = new ContainerBuilder()
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `✅ Deine Anfrage wurde verarbeitet. Das Ticket wird jetzt geschlossen.`
+                    )
+                );
+
+            await interaction.followUp({
+                components: [confirmationContainer],
+                flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
+            });
+        } catch (err) {
+            console.error('Send error (abbruch):', err.message);
+        }
 
         const guild = interaction.guild;
 
@@ -351,6 +372,7 @@ module.exports = async function handleButton(interaction) {
                 await interaction.channel.delete();
                 delete store.trades[channelIdStr];
                 store.save();
+                console.log(`✅ Ticket ${channelIdStr} gelöscht.`);
             } catch (err) {
                 console.error('Delete error:', err.message);
             }
