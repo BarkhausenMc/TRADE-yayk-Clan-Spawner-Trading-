@@ -37,7 +37,6 @@ function loadData() {
         if (!data.inventory) data.inventory = {};
         if (data.lastAnnounceMessageId === undefined) data.lastAnnounceMessageId = null;
         
-        // Bestand für alle Spawner initialisieren (falls noch nicht vorhanden)
         for (const spawnerName of Object.keys(constants.prices)) {
             if (data.inventory[spawnerName] === undefined) {
                 data.inventory[spawnerName] = 0;
@@ -124,7 +123,6 @@ function togglePrice(spawnerName, type) {
     return data.prices[spawnerName][type];
 }
 
-// === INVENTORY FUNCTIONS ===
 function getInventory(spawnerName) {
     return data.inventory[spawnerName] || 0;
 }
@@ -133,7 +131,6 @@ function adjustInventory(spawnerName, amount) {
     if (!data.inventory) data.inventory = {};
     if (data.inventory[spawnerName] === undefined) data.inventory[spawnerName] = 0;
     data.inventory[spawnerName] += amount;
-    // Bestand kann nicht negativ sein
     if (data.inventory[spawnerName] < 0) data.inventory[spawnerName] = 0;
     saveData();
 }
@@ -161,11 +158,9 @@ function buildPricePanel() {
         return `${emoji} ${name.padEnd(12)} ${ankauf.padStart(10)}  ${verkauf.padStart(10)}`;
     }).join('\n');
 
-    // === BESTAND MIT INLINE CODE FÜR DIE ZAHL ===
     const stockLines = Object.entries(constants.prices).map(([name]) => {
         const stock = getInventory(name);
         const emoji = constants.spawnerEmojis[name] || '📦';
-        // Format: "💥 Creeper: `5` Stück" (Nur die Zahl in Backticks)
         return `**${emoji} ${name}:** \`${stock} Stk.\``;
     }).join('\n');
 
@@ -217,6 +212,7 @@ function buildPricePanel() {
 
     return [container, row];
 }
+
 async function updatePricePanel(client) {
     const messageId = getPanelMessageId();
     const channelId = getPanelChannelId();

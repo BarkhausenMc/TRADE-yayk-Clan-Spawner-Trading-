@@ -46,6 +46,7 @@ async function logTrade(guild, trade, status) {
 
 async function forceCloseVouchWithChannel(channel, trade, guild) {
     try {
+        console.log(`🔍 [DEBUG] forceCloseVouchWithChannel aufgerufen! Trade: #${trade.handNummer}, Spawner: ${trade.spawnerType}, Action: ${trade.action}, Amount: ${trade.amount}`);
         // 1. Vouches ins Vouch-Channel posten
         if (trade.vouchEntries && trade.vouchEntries.length > 0) {
             const vouchChannel = guild.channels.cache.get(constants.VOUCH_CHANNEL_ID);
