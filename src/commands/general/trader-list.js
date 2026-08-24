@@ -14,7 +14,7 @@ const store = require('../../data/store');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('trader-list')
-        .setDescription('📋 Erstellt eine öffentliche Trader-Liste für die Community')
+        .setDescription('📋 Erstellt eine öffentliche Trader-Liste in Components V2')
         .addBooleanOption(opt =>
             opt.setName('overwrite')
                 .setDescription('Alte Trader-Nachricht ersetzen?')
@@ -22,20 +22,17 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        // ⭐ Permission prüfen VOR deferReply
-        if (!interaction.member.roles.cache.has(constants.TRADER_ADMIN_ROLE_ID)) {
-            await interaction.reply({
-                content: '❌ Nur Trader Admins dürfen diesen Befehl nutzen!',
-                flags: MessageFlags.Ephemeral
-            });
-            return;
-        }
-
-        // ⭐ JETZT erst deferReply (ephemeral — nur für Admin sichtbar)
+        // ⭐ SOFORT deferReply, damit die Interaction nicht abläuft!
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         try {
-            // 1. TRADER ROLLE HOLEN
+            // 1. PERMISSION PRÜFEN
+            if (!interaction.member.roles.cache.has(constants.TRADER_ADMIN_ROLE_ID)) {
+                await interaction.editReply({ content: '❌ Nur Trader Admins dürfen diesen Befehl nutzen!' });
+                return;
+            }
+
+            // 2. TRADER ROLLE HOLEN
             if (!constants.TRADER_ROLE_ID) {
                 await interaction.editReply({ content: '❌ Kein TRADER_ROLE_ID konfiguriert.' });
                 return;
@@ -53,7 +50,7 @@ module.exports = {
                 return;
             }
 
-            // 2. STATS HOLEN
+            // 3. STATS HOLEN
             const traderStats = store.traderStats || {};
             const traderList = [];
 
@@ -67,7 +64,6 @@ module.exports = {
                     starCount: 0
                 };
 
-                // MC Name aus stats oder Discord Username
                 const mcName = stats.mcName
                     ? stats.mcName
                     : member.user.username.replace(/[^a-zA-Z0-9_]/g, '').substring(0, 16);
@@ -76,21 +72,19 @@ module.exports = {
                     ? (stats.totalStars / stats.starCount).toFixed(1)
                     : 'N/A';
 
-                const headUrl = `https://mc-heads.net/avatar/${mcName}/128`;
-
                 traderList.push({
                     member,
                     stats,
                     avgRating,
-                    headUrl,
+                    headUrl: `https://mc-heads.net/avatar/${mcName}/128`,
                     mcName
                 });
             }
 
-            // 3. SORTIEREN
+            // 4. SORTIEREN
             traderList.sort((a, b) => b.stats.completedTrades - a.stats.completedTrades);
 
-            // 4. ALTE NACHRICHT LÖSCHEN
+            // 5. ALTE NACHRICHT LÖSCHEN
             const overwriteOld = interaction.options.getBoolean('overwrite') ?? true;
             if (overwriteOld && store.getLastTraderListMessageId) {
                 const oldMessageId = store.getLastTraderListMessageId();
@@ -98,21 +92,18 @@ module.exports = {
                     try {
                         const oldMsg = await interaction.channel.messages.fetch(oldMessageId);
                         await oldMsg.delete();
-                        console.log('🗑️ Alte Trader-Liste gelöscht');
-                    } catch (err) {
-                        console.log('⚠️ Alte Nachricht nicht gefunden:', err.message);
-                    }
+                    } catch (err) {}
                 }
             }
 
-            // 5. CONTAINER BAUEN — mit MC Köpfen als Thumbnails!
+            // 6. PURE CV2 CONTAINER BAUEN
             const container = new ContainerBuilder();
 
             for (let i = 0; i < traderList.length; i++) {
                 const trader = traderList[i];
                 const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `**${i + 1}.**`;
 
-                // ⭐ SECTION: MC Head als Thumbnail + Name daneben
+                // ⭐ SECTION: MC Head Thumbnail rechts + Name links
                 const section = new SectionBuilder()
                     .addTextDisplayComponents(
                         new TextDisplayBuilder().setContent(
@@ -128,7 +119,7 @@ module.exports = {
 
                 container.addSectionComponents(section);
 
-                // ⭐ STATS darunter
+                // ⭐ STATS
                 container.addTextDisplayComponents(
                     new TextDisplayBuilder().setContent(
                         `> ✅ **${trader.stats.completedTrades}** Trades  ` +
@@ -139,7 +130,7 @@ module.exports = {
                     )
                 );
 
-                // ⭐ SEPARATOR zwischen Tradern
+                // ⭐ SEPARATOR
                 if (i < traderList.length - 1) {
                     container.addSeparatorComponents(
                         new SeparatorBuilder().setDivider(true).setSpacing(1)
@@ -147,28 +138,31 @@ module.exports = {
                 }
             }
 
-            // 6. PUBLIC NACHRICHT (für alle sichtbar)
+            // 7. PUBLIC NACHRICHT (CV2)
             const newMessage = await interaction.channel.send({
                 components: [container],
                 flags: MessageFlags.IsComponentsV2
             });
 
-            // 7. MESSAGE ID SPEICHERN
             if (store.setLastTraderListMessageId) {
                 store.setLastTraderListMessageId(newMessage.id);
             }
 
-            // 8. ADMIN BESTÄTIGUNG (ephemeral)
+            // 8. ADMIN ANTWORT (CV2)
+            const adminReply = new ContainerBuilder()
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(`✅ Trader-Liste wurde veröffentlicht!`)
+                );
+
             await interaction.editReply({
-                content: `✅ Trader-Liste gesendet!`
+                components: [adminReply],
+                flags: MessageFlags.IsComponentsV2
             });
 
         } catch (error) {
             console.error('Error in /trader-list:', error);
             try {
-                await interaction.editReply({
-                    content: '❌ Fehler beim Erstellen der Trader-Liste.'
-                });
+                await interaction.editReply({ content: '❌ Fehler beim Erstellen der Trader-Liste.' });
             } catch (e) {}
         }
     }
