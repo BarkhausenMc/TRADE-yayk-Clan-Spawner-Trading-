@@ -119,16 +119,15 @@ module.exports = {
 
                 container.addSectionComponents(section);
 
-                // // ⭐ STATS
-                // container.addTextDisplayComponents(
-                //     new TextDisplayBuilder().setContent(
-                //         ` ✅ **Abgeschlossene Trades:** ${trader.stats.completedTrades}\n` +
-                //         ` ⭐ **Durchschnittliche Bewertung:** ${trader.avgRating}/5\n` +
-                //         ` 💰 **Gesamtvolumen:** ${trader.stats.totalVolume.toFixed(1)}M\n` +
-                //         ` ➕ **Eingenommen (Ankauf):** ${(trader.stats.totalEarned || 0).toFixed(1)}M\n` +
-                //         ` ➖ **Ausgezahlt (Verkauf):** ${(trader.stats.totalSpent || 0).toFixed(1)}M\n`
-                //     )
-                // );
+                container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+        `## 🤝 Unsere Trader\n\n` +
+        `Hier findest du die Statistiken unseres Traders.\n`
+    )
+)
+.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(true).setSpacing(1)
+);
 
                 // ⭐ SEPARATOR
                 if (i < traderList.length - 1) {
