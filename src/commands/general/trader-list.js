@@ -122,11 +122,11 @@ module.exports = {
                 // ⭐ STATS
                 container.addTextDisplayComponents(
                     new TextDisplayBuilder().setContent(
-                        `> ✅ **Abgeschlossene Trades:** ${trader.stats.completedTrades}\n` +
-                        `> ⭐ **Durchschnittliche Bewertung:** ${trader.avgRating}/5\n` +
-                        `> 💰 **Gesamtvolumen:** ${trader.stats.totalVolume.toFixed(1)}M\n` +
-                        `> ➕ **Eingenommen (Ankauf):** ${(trader.stats.totalEarned || 0).toFixed(1)}M\n` +
-                        `> ➖ **Ausgezahlt (Verkauf):** ${(trader.stats.totalSpent || 0).toFixed(1)}M\n`
+                        ` ✅ **Abgeschlossene Trades:** ${trader.stats.completedTrades}\n` +
+                        ` ⭐ **Durchschnittliche Bewertung:** ${trader.avgRating}/5\n` +
+                        ` 💰 **Gesamtvolumen:** ${trader.stats.totalVolume.toFixed(1)}M\n` +
+                        ` ➕ **Eingenommen (Ankauf):** ${(trader.stats.totalEarned || 0).toFixed(1)}M\n` +
+                        ` ➖ **Ausgezahlt (Verkauf):** ${(trader.stats.totalSpent || 0).toFixed(1)}M\n`
                     )
                 );
 
