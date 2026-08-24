@@ -2,10 +2,10 @@ const {
     SlashCommandBuilder,
     ContainerBuilder,
     TextDisplayBuilder,
+    SeparatorBuilder,
     MessageFlags
 } = require('discord.js');
 
-// ⭐ KORREKTER PFAD (2x hochgehen)
 const constants = require('../../config/constants');
 const store = require('../../data/store');
 
@@ -46,7 +46,7 @@ module.exports = {
             // 2. STATS AUS STORE HOLEN
             const traderStats = store.traderStats || {};
 
-            // 3. LISTE ERSTELLEN
+            // 3. LISTE ERSTELLEN & SORTIEREN
             const traderList = [];
 
             for (const [memberId, member] of traderMembers) {
@@ -63,65 +63,78 @@ module.exports = {
                     ? (stats.totalStars / stats.starCount).toFixed(1)
                     : 'N/A';
 
-                // MC Name (Discord Username verwenden)
+                // MC Name (erste 16 Zeichen ohne Sonderzeichen)
                 const mcName = member.user.username.replace(/[^a-zA-Z0-9_]/g, '').substring(0, 16);
-                const headUrl = `https://mc-heads.net/avatar/${mcName}/64`;
+                const headUrl = `https://mc-heads.net/avatar/Mobile/${mcName}`;
 
                 traderList.push({
                     member,
                     stats,
                     avgRating,
                     headUrl,
-                    mcName
+                    mcName,
+                    dcName: member.user.tag
                 });
             }
 
-            // 4. NACH TRADES SORTIEREN
+            // Nach Trades sortieren
             traderList.sort((a, b) => b.stats.completedTrades - a.stats.completedTrades);
 
-            // 5. TEXT FÜR EMBED BASTELN
-            const leaderboard = traderList.map((trader, i) => {
-                const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `${i + 1}.`;
-                const trades = trader.stats.completedTrades;
-                const rating = trader.avgRating;
-                const volume = trader.stats.totalVolume.toFixed(1);
-                return `${medal} <@${trader.member.id}> | ${trades} Trades | ⭐ ${rating} | 💎 ${volume}M`;
-            }).join('\n');
-
-            // 6. NACHRICHT SENDEN
-            const container = new ContainerBuilder()
+            // 4. HEADER NACHRICHT (Titel)
+            const headerContainer = new ContainerBuilder()
                 .addTextDisplayComponents(
                     new TextDisplayBuilder().setContent(
                         `## 🏆 • Trader Leaderboard — ${traderList.length} Trader\n\n` +
                         `Sortiert nach abgeschlossenen Trades\n\n` +
-                        `---\n\n` +
-                        leaderboard + '\n\n' +
-                        `||MC Köpfe via mc-heads.net||`
+                        `Legende: ⭐ = Bewertung | 💎 = Gesamtvolumen`
                     )
                 );
 
             await interaction.editReply({
-                components: [container],
+                components: [headerContainer],
                 flags: MessageFlags.IsComponentsV2
             });
 
-            // 7. MC KÖPFE ALSE ANHÄNGE (optional)
-            for (let i = 0; i < Math.min(traderList.length, 5); i++) {
+            // 5. PRO TRADER: MC KOPF + CONTAINER MIT INFOS
+            for (let i = 0; i < traderList.length; i++) {
                 const trader = traderList[i];
                 const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `${i + 1}.`;
 
-                try {
-                    await interaction.channel.send({
-                        content: `**${medal} ${trader.mcName}** — ${trader.stats.completedTrades} Trades | ⭐ ${trader.avgRating}`,
-                        files: [{
-                            attachment: trader.headUrl,
-                            name: `head-${i}.png`
-                        }]
-                    });
-                } catch (err) {
-                    console.log(`Head laden fehlgeschlagen: ${trader.mcName}`, err.message);
+                // Trader-Container
+                const traderContainer = new ContainerBuilder()
+                    .addTextDisplayComponents(
+                        new TextDisplayBuilder().setContent(
+                            `**${medal} ${trader.mcName}** (${trader.dcName})\n\n` +
+                            `| ${trader.stats.completedTrades} Trades |\n` +
+                            `| ⭐ ${trader.avgRating} Rating |\n` +
+                            `| 💎 ${trader.stats.totalVolume.toFixed(1)}M Volumen |`
+                        )
+                    );
+
+                // Separater Separator als Trenner
+                const separator = new SeparatorBuilder().setDivider(true).setSpacing(1);
+
+                // Nachricht mit Bild-Anhang + Container
+                await interaction.channel.send({
+                    content: '',
+                    components: [traderContainer, separator],
+                    files: [{
+                        attachment: trader.headUrl,
+                        name: `head-${i}.png`
+                    }],
+                    flags: MessageFlags.IsComponentsV2
+                });
+
+                // Kleine Pause zwischen den Nachrichten (Rate Limit vermeiden)
+                if (i < traderList.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
             }
+
+            // 6. FOOTER
+            await interaction.channel.send({
+                content: '||ℹ️ Alle Trader mit der Rolle werden angezeigt. Letzte Aktualisierung: <t:${Math.floor(Date.now() / 1000)}:R>||'
+            });
 
         } catch (error) {
             console.error('Error in /trader-list:', error);
