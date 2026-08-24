@@ -35,6 +35,7 @@ function loadData() {
         console.error('❌ Fehler beim Laden:', err);
         data = { tradeCounters: {}, trades: {}, vouches: [], traderStats: {}, priceChanges: [], inventory: {}, lastAnnounceMessageId: null };
     }
+    if (data.lastTraderListMessageId === undefined) data.lastTraderListMessageId = null;
 }
 
 function saveData() {
@@ -102,6 +103,8 @@ function getPanelChannelId() { return data.panelChannelId || null; }
 function setPanelChannelId(id) { data.panelChannelId = id; saveData(); }
 function getLastAnnounceMessageId() { return data.lastAnnounceMessageId || null; }
 function setLastAnnounceMessageId(id) { data.lastAnnounceMessageId = id; saveData(); }
+function getLastTraderListMessageId() { return data.lastTraderListMessageId || null; }
+function setLastTraderListMessageId(messageId) { data.lastTraderListMessageId = messageId; saveData(); }
 
 function buildPricePanel() {
     const priceLines = Object.entries(constants.prices).map(([name]) => {
@@ -178,5 +181,7 @@ module.exports = {
     getPanelMessageId, setPanelMessageId, getPanelChannelId, setPanelChannelId,
     getLastAnnounceMessageId, setLastAnnounceMessageId,
     buildPricePanel, updatePricePanel,
-    getInventory, adjustInventory, getAllInventory
+    getInventory, adjustInventory, getAllInventory,
+    getLastTraderListMessageId,
+    setLastTraderListMessageId,
 };

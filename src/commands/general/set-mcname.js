@@ -1,5 +1,8 @@
 const {
     SlashCommandBuilder,
+    ContainerBuilder,
+    TextDisplayBuilder,
+    SeparatorBuilder,
     MessageFlags
 } = require('discord.js');
 
@@ -17,13 +20,13 @@ module.exports = {
         )
         .addStringOption(opt =>
             opt.setName('mcname')
-                .setDescription('Der Minecraft-Name (ohne Sonderzeichen)')
+                .setDescription('Der Minecraft-Name')
                 .setRequired(true)
                 .setMaxLength(16)
         ),
 
     async execute(interaction) {
-        // 1. PERMISSION PRÜFEN
+        // 1. PERMISSION
         if (!interaction.member.roles.cache.has(constants.TRADER_ADMIN_ROLE_ID)) {
             await interaction.reply({
                 content: '❌ Nur Trader Admins dürfen diesen Befehl nutzen!',
@@ -35,7 +38,7 @@ module.exports = {
         const targetUser = interaction.options.getUser('user');
         const mcName = interaction.options.getString('mcname').trim();
 
-        // 2. MC NAME VALIDIEREN (nur Buchstaben, Zahlen, Unterstrich, max 16 Zeichen)
+        // 2. VALIDIEREN
         const validPattern = /^[a-zA-Z0-9_]{3,16}$/;
         if (!validPattern.test(mcName)) {
             await interaction.reply({
@@ -46,7 +49,7 @@ module.exports = {
         }
 
         try {
-            // 3. STATS OBJ ERSTELLEN WENN NICHT VORHANDEN
+            // 3. STATS OBJ ERSTELLEN FALLS NICHT VORHANDEN
             if (!store.traderStats) {
                 store.traderStats = {};
             }
@@ -68,23 +71,28 @@ module.exports = {
             store.traderStats[targetUser.id].mcName = mcName;
             store.save();
 
-            // 5. ERFOLGSMELDUNG
-            const successEmbed = new (require('discord.js').EmbedBuilder())
-                .setTitle('✅ MC-Name verknüpft')
-                .setDescription(
-                    `**Discord:** <@${targetUser.id}>\n` +
-                    `**MC Name:** \`${mcName}\`\n\n` +
-                    (oldMcName 
-                        ? `*Vorher: \`${oldMcName}\`*\n*Jetzt: \`${mcName}\`*\n→ Avatar wird aktualisiert!`
-                        : `→ MC-Head wird jetzt geladen!`
+            // 5. ERFOLG — ContainerBuilder statt EmbedBuilder!
+            const headUrl = `https://mc-heads.net/avatar/${mcName}/128`;
+
+            const container = new ContainerBuilder()
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `## ✅ MC-Name verknüpft\n\n` +
+                        `**Discord:** <@${targetUser.id}>\n` +
+                        `**MC Name:** \`${mcName}\``
                     )
                 )
-                .setColor(0x00FF00)
-                .setFooter({ text: `Von <@${interaction.user.id}>` })
-                .setTimestamp();
+                .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        oldMcName
+                            ? `~~Vorher: \`${oldMcName}\`~~ → **Jetzt: \`${mcName}\`**`
+                            : `→ Neu verknüpft!`
+                    )
+                );
 
             await interaction.reply({
-                embeds: [successEmbed],
+                components: [container],
                 flags: MessageFlags.Ephemeral
             });
 
@@ -95,7 +103,7 @@ module.exports = {
             await interaction.reply({
                 content: '❌ Fehler beim Speichern des MC-Namens.',
                 flags: MessageFlags.Ephemeral
-            });
+            }).catch(() => {});
         }
     }
 };

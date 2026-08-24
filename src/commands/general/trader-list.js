@@ -1,6 +1,10 @@
 const {
     SlashCommandBuilder,
-    EmbedBuilder,
+    ContainerBuilder,
+    TextDisplayBuilder,
+    SeparatorBuilder,
+    SectionBuilder,
+    ThumbnailBuilder,
     MessageFlags
 } = require('discord.js');
 
@@ -13,53 +17,43 @@ module.exports = {
         .setDescription('📋 Erstellt eine öffentliche Trader-Liste für die Community')
         .addBooleanOption(opt =>
             opt.setName('overwrite')
-                .setDescription('Alte Trader-Nachricht ersetzen? (ansonsten neue Nachricht)')
+                .setDescription('Alte Trader-Nachricht ersetzen?')
                 .setRequired(false)
         ),
 
     async execute(interaction) {
-        // ⭐ KEIN deferReply - wir wollen öffentliche Nachricht
-        // Erst Permission prüfen
-        
+        // ⭐ Permission prüfen VOR deferReply
         if (!interaction.member.roles.cache.has(constants.TRADER_ADMIN_ROLE_ID)) {
             await interaction.reply({
-                content: '❌ Nur Trader Admins dürfen diese Nachricht erstellen!',
+                content: '❌ Nur Trader Admins dürfen diesen Befehl nutzen!',
                 flags: MessageFlags.Ephemeral
             });
             return;
         }
 
-        const overwriteOld = interaction.options.getBoolean('overwrite') ?? true;
+        // ⭐ JETZT erst deferReply (ephemeral — nur für Admin sichtbar)
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         try {
             // 1. TRADER ROLLE HOLEN
             if (!constants.TRADER_ROLE_ID) {
-                await interaction.reply({
-                    content: '❌ Kein TRADER_ROLE_ID in constants.js konfiguriert.',
-                    flags: MessageFlags.Ephemeral
-                });
+                await interaction.editReply({ content: '❌ Kein TRADER_ROLE_ID konfiguriert.' });
                 return;
             }
 
             const role = await interaction.guild.roles.fetch(constants.TRADER_ROLE_ID);
             if (!role) {
-                await interaction.reply({
-                    content: '❌ Trader-Rolle nicht gefunden.',
-                    flags: MessageFlags.Ephemeral
-                });
+                await interaction.editReply({ content: '❌ Trader-Rolle nicht gefunden.' });
                 return;
             }
 
             const traderMembers = role.members;
             if (traderMembers.size === 0) {
-                await interaction.reply({
-                    content: '❌ Kein Trader mit dieser Rolle im Server.',
-                    flags: MessageFlags.Ephemeral
-                });
+                await interaction.editReply({ content: '❌ Kein Trader mit dieser Rolle.' });
                 return;
             }
 
-            // 2. STATS AUS STORE HOLEN
+            // 2. STATS HOLEN
             const traderStats = store.traderStats || {};
             const traderList = [];
 
@@ -73,12 +67,11 @@ module.exports = {
                     starCount: 0
                 };
 
-                // MC Name aus Stats holen, falls vorhanden
-                const savedMcName = stats.mcName;
-                const mcName = savedMcName 
-                    ? savedMcName 
+                // MC Name aus stats oder Discord Username
+                const mcName = stats.mcName
+                    ? stats.mcName
                     : member.user.username.replace(/[^a-zA-Z0-9_]/g, '').substring(0, 16);
-                
+
                 const avgRating = stats.starCount > 0
                     ? (stats.totalStars / stats.starCount).toFixed(1)
                     : 'N/A';
@@ -90,115 +83,93 @@ module.exports = {
                     stats,
                     avgRating,
                     headUrl,
-                    mcName,
-                    dcName: member.user.username
+                    mcName
                 });
             }
 
-            // 3. SORTIEREN NACH TRADES
+            // 3. SORTIEREN
             traderList.sort((a, b) => b.stats.completedTrades - a.stats.completedTrades);
 
-            // 4. ALTE NACHRICHT LÖSCHEN WENN OVERWRITE
-            const oldMessageId = store.getLastTraderListMessageId?.();
-            if (overwriteOld && oldMessageId) {
-                try {
-                    const oldMsg = await interaction.channel.messages.fetch(oldMessageId);
-                    await oldMsg.delete();
-                    console.log('🗑️ Alte Trader-Liste gelöscht');
-                } catch (err) {
-                    console.log('⚠️ Alte Nachricht nicht gefunden:', err.message);
+            // 4. ALTE NACHRICHT LÖSCHEN
+            const overwriteOld = interaction.options.getBoolean('overwrite') ?? true;
+            if (overwriteOld && store.getLastTraderListMessageId) {
+                const oldMessageId = store.getLastTraderListMessageId();
+                if (oldMessageId) {
+                    try {
+                        const oldMsg = await interaction.channel.messages.fetch(oldMessageId);
+                        await oldMsg.delete();
+                        console.log('🗑️ Alte Trader-Liste gelöscht');
+                    } catch (err) {
+                        console.log('⚠️ Alte Nachricht nicht gefunden:', err.message);
+                    }
                 }
             }
 
-            // 5. HEADER EMBED
-            const headerEmbed = new EmbedBuilder()
-                .setTitle('🏆 Offizielle Trader-Liste')
-                .setDescription(
-                    `**${traderList.length} verifizierte Trader**\n` +
-                    `Sortiert nach abgeschlossenen Trades\n\n` +
-                    `⭐ = Durchschnittsbewertung | 💎 = Gesamtvolumen`
-                )
-                .setColor(0x6d4aff)
-                .setFooter({ 
-                    text: 'Yayk Clan Spawner Trading • Nur Trusted Trader' 
-                })
-                .setTimestamp();
-
-            // 6. TRADER EMBEDS ERSTELLEN
-            const embeds = [headerEmbed];
+            // 5. CONTAINER BAUEN — mit MC Köpfen als Thumbnails!
+            const container = new ContainerBuilder();
 
             for (let i = 0; i < traderList.length; i++) {
                 const trader = traderList[i];
-                const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `${i + 1}.`;
+                const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `**${i + 1}.**`;
 
-                const embed = new EmbedBuilder()
-                    .setAuthor({
-                        name: `${medal} ${trader.mcName}`,
-                        iconURL: trader.headUrl
-                    })
-                    .addFields(
-                        { 
-                            name: '👤 Discord', 
-                            value: `<@${trader.member.id}>`, 
-                            inline: true 
-                        },
-                        { 
-                            name: '✅ Trades', 
-                            value: `**${trader.stats.completedTrades}**`, 
-                            inline: true 
-                        },
-                        { 
-                            name: '⭐ Bewertung', 
-                            value: `${trader.avgRating}/5`, 
-                            inline: true 
-                        },
-                        { 
-                            name: '💎 Volumen', 
-                            value: `${trader.stats.totalVolume.toFixed(1)}M`, 
-                            inline: true 
-                        },
-                        { 
-                            name: '➕ Eingenommen', 
-                            value: `${(trader.stats.totalEarned || 0).toFixed(1)}M`, 
-                            inline: true 
-                        },
-                        { 
-                            name: '➖ Ausgezahlt', 
-                            value: `${(trader.stats.totalSpent || 0).toFixed(1)}M`, 
-                            inline: true 
-                        }
+                // ⭐ SECTION: MC Head als Thumbnail + Name daneben
+                const section = new SectionBuilder()
+                    .addTextDisplayComponents(
+                        new TextDisplayBuilder().setContent(
+                            `### ${medal} \`${trader.mcName}\`\n` +
+                            `<@${trader.member.id}>`
+                        )
                     )
-                    .setColor(i < 3 ? [0xFFD700, 0xC0C0C0, 0xCD7F32][i] : 0x6d4aff);
+                    .setThumbnailAccessory(
+                        new ThumbnailBuilder()
+                            .setURL(trader.headUrl)
+                            .setDescription(`MC Head: ${trader.mcName}`)
+                    );
 
-                embeds.push(embed);
+                container.addSectionComponents(section);
 
-                // Discord Limit: max 10 Embeds pro Nachricht
-                if (embeds.length >= 10) break;
+                // ⭐ STATS darunter
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `> ✅ **${trader.stats.completedTrades}** Trades  ` +
+                        `•  ⭐ **${trader.avgRating}**/5  ` +
+                        `•  💎 **${trader.stats.totalVolume.toFixed(1)}M** Volumen\n` +
+                        `> ➕ **${(trader.stats.totalEarned || 0).toFixed(1)}M** eingekauft  ` +
+                        `•  ➖ **${(trader.stats.totalSpent || 0).toFixed(1)}M** verkauft`
+                    )
+                );
+
+                // ⭐ SEPARATOR zwischen Tradern
+                if (i < traderList.length - 1) {
+                    container.addSeparatorComponents(
+                        new SeparatorBuilder().setDivider(true).setSpacing(1)
+                    );
+                }
             }
 
-            // 7. PUBLIC NACHRICHT SENDEN
-            const newMessage = await interaction.channel.send({ embeds });
+            // 6. PUBLIC NACHRICHT (für alle sichtbar)
+            const newMessage = await interaction.channel.send({
+                components: [container],
+                flags: MessageFlags.IsComponentsV2
+            });
 
-            // 8. MESSAGE ID SPEICHERN FÜR OVERWRITE
+            // 7. MESSAGE ID SPEICHERN
             if (store.setLastTraderListMessageId) {
                 store.setLastTraderListMessageId(newMessage.id);
             }
 
-            await interaction.reply({
-                content: `✅ Trader-Liste erstellt in <#${interaction.channel.id}>!`,
-                flags: MessageFlags.Ephemeral
+            // 8. ADMIN BESTÄTIGUNG (ephemeral)
+            await interaction.editReply({
+                content: `✅ Trader-Liste gesendet!`
             });
 
         } catch (error) {
             console.error('Error in /trader-list:', error);
             try {
-                await interaction.reply({
-                    content: '❌ Fehler beim Erstellen der Trader-Liste.',
-                    flags: MessageFlags.Ephemeral
+                await interaction.editReply({
+                    content: '❌ Fehler beim Erstellen der Trader-Liste.'
                 });
-            } catch (e) {
-                // Ignore - könnte schon beantwortet sein
-            }
+            } catch (e) {}
         }
     }
 };
