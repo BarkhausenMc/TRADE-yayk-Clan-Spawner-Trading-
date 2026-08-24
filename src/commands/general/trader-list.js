@@ -103,6 +103,16 @@ module.exports = {
                 const trader = traderList[i];
                 const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `**${i + 1}.**`;
 
+                                container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+        `## 🤝 Unsere Trader\n\n` +
+        `Hier findest du die Statistiken unseres Traders.\n`
+    )
+)
+.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(true).setSpacing(1)
+);
+
                 // ⭐ SECTION: MC Head Thumbnail rechts + Name links
                 const section = new SectionBuilder()
                     .addTextDisplayComponents(
@@ -119,15 +129,6 @@ module.exports = {
 
                 container.addSectionComponents(section);
 
-                container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-        `## 🤝 Unsere Trader\n\n` +
-        `Hier findest du die Statistiken unseres Traders.\n`
-    )
-)
-.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(true).setSpacing(1)
-);
 
                 // ⭐ SEPARATOR
                 if (i < traderList.length - 1) {
