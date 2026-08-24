@@ -95,49 +95,48 @@ module.exports = {
                     } catch (err) {}
                 }
             }
+// 6. PURE CV2 CONTAINER BAUEN
+const container = new ContainerBuilder();
 
-            // 6. PURE CV2 CONTAINER BAUEN
-            const container = new ContainerBuilder();
-
-            for (let i = 0; i < traderList.length; i++) {
-                const trader = traderList[i];
-                const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `**${i + 1}.**`;
-
-                                container.addTextDisplayComponents(
+// ⭐ HEADER — nur einmal, VOR der Schleife
+container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
         `## 🤝 Unsere Trader\n\n` +
-        `Hier findest du unseres Traders.\n`
+        `Hier findest du unsere Trader.\n`
     )
 )
 .addSeparatorComponents(
     new SeparatorBuilder().setDivider(true).setSpacing(1)
 );
 
-                // ⭐ SECTION: MC Head Thumbnail rechts + Name links
-                const section = new SectionBuilder()
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent(
-                            `### ${medal} \`${trader.mcName}\`\n` +
-                            `<@${trader.member.id}>`
-                        )
-                    )
-                    .setThumbnailAccessory(
-                        new ThumbnailBuilder()
-                            .setURL(trader.headUrl)
-                            .setDescription(`MC Head: ${trader.mcName}`)
-                    );
+// ⭐ SCHLEIFE — nur die Trader-Einträge
+for (let i = 0; i < traderList.length; i++) {
+    const trader = traderList[i];
+    const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `**${i + 1}.**`;
 
-                container.addSectionComponents(section);
+    // ⭐ SECTION: MC Head Thumbnail + Name
+    const section = new SectionBuilder()
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+                `### ${medal} \`${trader.mcName}\`\n` +
+                `<@${trader.member.id}>`
+            )
+        )
+        .setThumbnailAccessory(
+            new ThumbnailBuilder()
+                .setURL(trader.headUrl)
+                .setDescription(`MC Head: ${trader.mcName}`)
+        );
 
+    container.addSectionComponents(section);
 
-                // ⭐ SEPARATOR
-                if (i < traderList.length - 1) {
-                    container.addSeparatorComponents(
-                        new SeparatorBuilder().setDivider(true).setSpacing(1)
-                    );
-                }
-            }
-
+    // ⭐ SEPARATOR zwischen Tradern (nicht nach dem letzten)
+    if (i < traderList.length - 1) {
+        container.addSeparatorComponents(
+            new SeparatorBuilder().setDivider(true).setSpacing(1)
+        );
+    }
+}
             // 7. PUBLIC NACHRICHT (CV2)
             const newMessage = await interaction.channel.send({
                 components: [container],
