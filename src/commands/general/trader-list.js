@@ -106,7 +106,7 @@ module.exports = {
                                 container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
         `## 🤝 Unsere Trader\n\n` +
-        `Hier findest du die Statistiken unseres Traders.\n`
+        `Hier findest du unseres Traders.\n`
     )
 )
 .addSeparatorComponents(
