@@ -5,7 +5,6 @@ const {
     MessageFlags
 } = require('discord.js');
 
-const axios = require('axios');
 const constants = require('../config/constants');
 const store = require('../data/store');
 
@@ -14,11 +13,8 @@ module.exports = {
         .setName('trader-list')
         .setDescription('📋 Zeigt alle Trader mit MC-Köpfen und Statistiken'),
 
-    /**
-     * @param {import('discord.js').ChatInputCommandInteraction} interaction
-     */
     async execute(interaction) {
-        // ⭐ Sofort defer — keine Unknown Interaction!
+        // ⭐ SOFORT deferReply — innerhalb von 3 Sekunden!
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         try {
@@ -33,7 +29,7 @@ module.exports = {
             const role = await interaction.guild.roles.fetch(constants.TRADER_ROLE_ID);
             if (!role) {
                 await interaction.editReply({
-                    content: '❌ Trader-Rolle nicht gefunden in diesem Server.'
+                    content: '❌ Trader-Rolle nicht gefunden.'
                 });
                 return;
             }
@@ -49,10 +45,7 @@ module.exports = {
             // 2. STATS AUS STORE HOLEN
             const traderStats = store.traderStats || {};
 
-            // 3. MC HEADS CACHEN (für Performance)
-            const headCache = new Map();
-
-            // 4. FÜR JEDEN TRADER HEAD + STATS HOLEN
+            // 3. LISTE ERSTELLEN
             const traderList = [];
 
             for (const [memberId, member] of traderMembers) {
@@ -69,85 +62,63 @@ module.exports = {
                     ? (stats.totalStars / stats.starCount).toFixed(1)
                     : 'N/A';
 
-                // MC Name aus Discord Username holen (vereinfacht — bei dir ggf. anpassen)
-                const mcName = member.displayName.replace(/[^a-zA-Z0-9_]/g, '');
-
-                // MC Head URL (mc-heads.net)
+                // MC Name aus Discord Username (erste ~8 Zeichen als MC-Name)
+                const mcName = member.user.username.replace(/[^a-zA-Z0-9_]/g, '').substring(0, 16);
                 const headUrl = `https://mc-heads.net/avatar/${mcName}/64`;
-                headCache.set(memberId, headUrl);
 
                 traderList.push({
                     member,
                     stats,
                     avgRating,
-                    headUrl
+                    headUrl,
+                    mcName
                 });
             }
 
-            // 5. LISTE NACH TRADES SORTIEREN
+            // 4. NACH TRADES SORTIEREN
             traderList.sort((a, b) => b.stats.completedTrades - a.stats.completedTrades);
 
-            // 6. NACH CHUNKS AUFTEILEN (Discord Limits beachten!)
-            const maxEmbedLength = 4096;
-            const chunks = [];
-            let currentChunk = '';
-            let currentContainer = null;
-
-            for (let i = 0; i < traderList.length; i++) {
-                const trader = traderList[i];
+            // 5. TEXT FÜR EMBED BASTEN
+            const leaderboard = traderList.map((trader, i) => {
                 const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `${i + 1}.`;
-                
-                const line = `\n${medal} <@${trader.member.id}> — ${trader.stats.completedTrades} Trades | ⭐ ${trader.avgRating} | 💎 ${trader.stats.totalVolume.toFixed(1)}M`;
-                
-                // Einfachheitshalber: Alle in EINER Nachricht (wenn zu lang → Fehlerhandling)
-                currentChunk += line;
-            }
+                const trades = trader.stats.completedTrades;
+                const rating = trader.avgRating;
+                const volume = trader.stats.totalVolume.toFixed(1);
+                return `${medal} <@${trader.member.id}> | ${trades} Trades | ⭐ ${rating} | 💎 ${volume}M`;
+            }).join('\n');
 
-            // 7. NACHRICHT MIT HEADS SENDEN
+            // 6. NACHRICHT SENDEN
             const container = new ContainerBuilder()
                 .addTextDisplayComponents(
                     new TextDisplayBuilder().setContent(
                         `## 🏆 • Trader Leaderboard — ${traderList.length} Trader\n\n` +
-                        `Sortiert nach abgeschlossenen Trades\n` +
-                        `Legende: ⭐ = Bewertung | 💎 = Gesamtvolumen\n\n` +
-                        `---\n` +
-                        currentChunk.trim() + '\n\n' +
-                        `||ℹ️ MC Köpfe laden über mc-heads.net||`
+                        `Sortiert nach abgeschlossenen Trades\n\n` +
+                        `---\n\n` +
+                        leaderboard + '\n\n' +
+                        `||MC Köpfe: https://mc-heads.net/avatar/{Name}/64||`
                     )
                 );
 
-            // Für jeden Trader Head als Avatar in separater Nachricht (weil Container kein Bild)
             await interaction.editReply({
-                content: null, // Content nicht setzen mit IsComponentsV2!
                 components: [container],
                 flags: MessageFlags.IsComponentsV2
             });
 
-            // Optional: Head-Bilder als separate Nachrichten (falls gewünscht)
-            for (let i = 0; i < Math.min(traderList.length, 10); i++) {
+            // 7. MC KÖPFE ALSE ANHÄNGE SENDEN (optional)
+            for (let i = 0; i < Math.min(traderList.length, 5); i++) {
                 const trader = traderList[i];
                 const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `${i + 1}.`;
 
-                const headContainer = new ContainerBuilder()
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent(
-                            `**${medal} <@${trader.member.id}>**\n` +
-                            `Trades: ${trader.stats.completedTrades} | ⭐ ${trader.avgRating}`
-                        )
-                    );
-
                 try {
                     await interaction.channel.send({
-                        content: '',
-                        components: [headContainer],
+                        content: `**${medal} ${trader.mcName}** — ${trader.stats.completedTrades} Trades | ⭐ ${trader.avgRating}`,
                         files: [{
                             attachment: trader.headUrl,
-                            name: `avatar-${i}.png`
-                        }],
-                        flags: MessageFlags.IsComponentsV2
+                            name: `head-${i}.png`
+                        }]
                     });
                 } catch (err) {
-                    console.log('Fehler beim Senden von Head:', trader.member.id, err.message);
+                    console.log(`Head laden fehlgeschlagen: ${trader.mcName}`, err.message);
                 }
             }
 
