@@ -5,8 +5,9 @@ const {
     MessageFlags
 } = require('discord.js');
 
-const constants = require('../config/constants');
-const store = require('../data/store');
+// ⭐ KORREKTER PFAD (2x hochgehen)
+const constants = require('../../config/constants');
+const store = require('../../data/store');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -14,7 +15,7 @@ module.exports = {
         .setDescription('📋 Zeigt alle Trader mit MC-Köpfen und Statistiken'),
 
     async execute(interaction) {
-        // ⭐ SOFORT deferReply — innerhalb von 3 Sekunden!
+        // ⭐ SOFORT deferReply
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         try {
@@ -62,7 +63,7 @@ module.exports = {
                     ? (stats.totalStars / stats.starCount).toFixed(1)
                     : 'N/A';
 
-                // MC Name aus Discord Username (erste ~8 Zeichen als MC-Name)
+                // MC Name (Discord Username verwenden)
                 const mcName = member.user.username.replace(/[^a-zA-Z0-9_]/g, '').substring(0, 16);
                 const headUrl = `https://mc-heads.net/avatar/${mcName}/64`;
 
@@ -78,7 +79,7 @@ module.exports = {
             // 4. NACH TRADES SORTIEREN
             traderList.sort((a, b) => b.stats.completedTrades - a.stats.completedTrades);
 
-            // 5. TEXT FÜR EMBED BASTEN
+            // 5. TEXT FÜR EMBED BASTELN
             const leaderboard = traderList.map((trader, i) => {
                 const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `${i + 1}.`;
                 const trades = trader.stats.completedTrades;
@@ -95,7 +96,7 @@ module.exports = {
                         `Sortiert nach abgeschlossenen Trades\n\n` +
                         `---\n\n` +
                         leaderboard + '\n\n' +
-                        `||MC Köpfe: https://mc-heads.net/avatar/{Name}/64||`
+                        `||MC Köpfe via mc-heads.net||`
                     )
                 );
 
@@ -104,7 +105,7 @@ module.exports = {
                 flags: MessageFlags.IsComponentsV2
             });
 
-            // 7. MC KÖPFE ALSE ANHÄNGE SENDEN (optional)
+            // 7. MC KÖPFE ALSE ANHÄNGE (optional)
             for (let i = 0; i < Math.min(traderList.length, 5); i++) {
                 const trader = traderList[i];
                 const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `${i + 1}.`;
