@@ -210,7 +210,7 @@ if (interaction.commandName === 'trader-top') {
     const leaderboard = allStats.map(({ userId, completedTrades, avgRating, totalVolume }, i) => {
         const medal = medals[i] || `**${i + 1}.**`;
         // Formatierung: 2 Dezimalstellen für Sterne
-        return `${medal} <@${userId}> — ⭐ ${avgRating.toFixed(2)} | 🤝 ${completedTrades} Trades | 💎 ${(totalVolume || 0).toFixed(1)}M`;
+        return `${medal} <@${userId}> — ⭐ ${avgRating.toFixed(2)} | 🤝 ${completedTrades} Trades | 💵 ${(totalVolume || 0).toFixed(1)}M`;
     }).join('\n');
 
     const topContainer = new ContainerBuilder()
