@@ -12,7 +12,7 @@ const store = require('../../data/store');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('set-mcname')
-        .setDescription('🎮 Verknüpft einen MC-Namen mit einem Discord-User (nur Trader Admin)')
+        .setDescription('🎮 MC-Name verknüpfen (nur Trader Admin)')
         .addUserOption(opt =>
             opt.setName('user')
                 .setDescription('Welcher Discord-User?')
@@ -26,29 +26,25 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        // 1. PERMISSION
-        if (!interaction.member.roles.cache.has(constants.TRADER_ADMIN_ROLE_ID)) {
-            await interaction.reply({
-                content: '❌ Nur Trader Admins dürfen diesen Befehl nutzen!',
-                flags: MessageFlags.Ephemeral
-            });
-            return;
-        }
-
-        const targetUser = interaction.options.getUser('user');
-        const mcName = interaction.options.getString('mcname').trim();
-
-        // 2. VALIDIEREN
-        const validPattern = /^[a-zA-Z0-9_]{3,16}$/;
-        if (!validPattern.test(mcName)) {
-            await interaction.reply({
-                content: '❌ Ungültiger MC-Name! Nur Buchstaben, Zahlen und `_`, min. 3, max. 16 Zeichen.',
-                flags: MessageFlags.Ephemeral
-            });
-            return;
-        }
+        // ⭐ SOFORT deferReply (CV2 kompatibel)
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
 
         try {
+            // 1. PERMISSION
+            if (!interaction.member.roles.cache.has(constants.TRADER_ADMIN_ROLE_ID)) {
+                await interaction.editReply({ content: '❌ Nur Trader Admins dürfen diesen Befehl nutzen!' });
+                return;
+            }
+
+            const targetUser = interaction.options.getUser('user');
+            const mcName = interaction.options.getString('mcname').trim();
+
+            // 2. VALIDIEREN
+            if (!/^[a-zA-Z0-9_]{3,16}$/.test(mcName)) {
+                await interaction.editReply({ content: '❌ Ungültiger MC-Name! Nur Buchstaben, Zahlen und `_`, min. 3, max. 16 Zeichen.' });
+                return;
+            }
+
             // 3. STATS OBJ ERSTELLEN FALLS NICHT VORHANDEN
             if (!store.traderStats) {
                 store.traderStats = {};
@@ -71,9 +67,7 @@ module.exports = {
             store.traderStats[targetUser.id].mcName = mcName;
             store.save();
 
-            // 5. ERFOLG — ContainerBuilder statt EmbedBuilder!
-            const headUrl = `https://mc-heads.net/avatar/${mcName}/128`;
-
+            // 5. ERFOLG — PURE CV2
             const container = new ContainerBuilder()
                 .addTextDisplayComponents(
                     new TextDisplayBuilder().setContent(
@@ -91,19 +85,18 @@ module.exports = {
                     )
                 );
 
-            await interaction.reply({
+            await interaction.editReply({
                 components: [container],
-                flags: MessageFlags.Ephemeral
+                flags: MessageFlags.IsComponentsV2
             });
 
             console.log(`✅ MC-Name gesetzt: ${targetUser.tag} → ${mcName}`);
 
         } catch (error) {
             console.error('Error in /set-mcname:', error);
-            await interaction.reply({
-                content: '❌ Fehler beim Speichern des MC-Namens.',
-                flags: MessageFlags.Ephemeral
-            }).catch(() => {});
+            try {
+                await interaction.editReply({ content: '❌ Fehler beim Speichern des MC-Namens.' });
+            } catch (e) {}
         }
     }
 };
