@@ -170,7 +170,7 @@ client.on('interactionCreate', async (interaction) => {
                     .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
                     .addTextDisplayComponents(
                         new TextDisplayBuilder().setContent(
-                            `## 💵 • Money\n\n` +
+                            `## 💸 • Umsatz\n` +
                             `**💰 Gesamtvolumen:** ${(stats.totalVolume || 0).toFixed(1)}M\n` +
                             `**➕ Eingenommen (Ankauf):** ${(stats.totalEarned || 0).toFixed(1)}M\n` +
                             `**➖ Ausgezahlt (Verkauf):** ${(stats.totalSpent || 0).toFixed(1)}M\n`
@@ -181,38 +181,50 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
-            if (interaction.commandName === 'trader-top') {
-                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-                
-                const allStats = Object.entries(store.traderStats || {})
-                    .filter(([, s]) => s && s.completedTrades > 0)
-                    .sort((a, b) => b[1].completedTrades - a[1].completedTrades)
-                    .slice(0, 10);
+            // --- /trader-top ---
+if (interaction.commandName === 'trader-top') {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-                if (allStats.length === 0) {
-                    await interaction.editReply({ content: '❌ Noch keine abgeschlossenen Trades vorhanden.' });
-                    return;
-                }
+    // NULL-SCHUTZ
+    if (!store.traderStats) {
+        await interaction.editReply({ content: '❌ Interne Fehler - Trader-Stats nicht geladen.' });
+        return;
+    }
 
-                const medals = ['🥇', '🥈', '🥉'];
-                const leaderboard = allStats.map(([userId, s], i) => {
-                    const medal = medals[i] || `**${i + 1}.**`;
-                    const avg = s.starCount > 0 ? (s.totalStars / s.starCount).toFixed(1) : 'N/A';
-                    return `${medal} <@${userId}> — ${s.completedTrades} Trades | ⭐ ${avg} | 💎 ${(s.totalVolume || 0).toFixed(1)}M`;
-                }).join('\n');
+    const allStats = Object.entries(store.traderStats)
+        .filter(([, s]) => s && s.completedTrades > 0 && s.starCount > 0) // Nur wer bewertet wurde
+        .map(([userId, s]) => ({
+            userId,
+            ...s,
+            avgRating: s.starCount > 0 ? (s.totalStars / s.starCount) : 0 // Durchschnitt berechnen
+        }))
+        .sort((a, b) => b.avgRating - a.avgRating) // SORTIERUNG NACH DURCHSCHNITT (Höchste zuerst)
+        .slice(0, 10); // Top 10
 
-                const topContainer = new ContainerBuilder()
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent(
-                            `## 🏆 • Trader Leaderboard — Top 10\n\n` +
-                            `Sortiert nach abgeschlossenen Trades\n\n` +
-                            leaderboard
-                        )
-                    );
+    if (allStats.length === 0) {
+        await interaction.editReply({ content: '❌ Noch keine Bewertungen vorhanden.' });
+        return;
+    }
 
-                await interaction.editReply({ components: [topContainer], flags: MessageFlags.IsComponentsV2 });
-                return;
-            }
+    const medals = ['🥇', '🥈', '🥉'];
+    const leaderboard = allStats.map(({ userId, completedTrades, avgRating, totalVolume }, i) => {
+        const medal = medals[i] || `**${i + 1}.**`;
+        // Formatierung: 2 Dezimalstellen für Sterne
+        return `${medal} <@${userId}> — ⭐ ${avgRating.toFixed(2)} | 🤝 ${completedTrades} Trades | 💎 ${(totalVolume || 0).toFixed(1)}M`;
+    }).join('\n');
+
+    const topContainer = new ContainerBuilder()
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+                `## 🏆 • Top Trader nach Bewertung ⭐\n\n` +
+                `Sortiert nach durchschnittlicher Bewertung (min. 1 Trade)\n\n` +
+                leaderboard
+            )
+        );
+
+    await interaction.editReply({ components: [topContainer], flags: MessageFlags.IsComponentsV2 });
+    return;
+}
         }
 
         // ==========================================
