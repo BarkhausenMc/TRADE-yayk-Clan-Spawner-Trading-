@@ -123,10 +123,10 @@ module.exports = {
                 container.addTextDisplayComponents(
                     new TextDisplayBuilder().setContent(
                         `> ✅ **${trader.stats.completedTrades}** Trades\n  ` +
-                        `>  ⭐ **${trader.avgRating}**/5\n  ` +
-                        `>  💰 **${trader.stats.totalVolume.toFixed(1)}M** Volumen\n` +
-                        `> ➕ **${(trader.stats.totalEarned || 0).toFixed(1)}M** eingekauft\n  ` +
-                        `> ➖ **${(trader.stats.totalSpent || 0).toFixed(1)}M** verkauft\n`
+                        `> ⭐ **${trader.avgRating}**/5\n  ` +
+                        `> 💰 **Gesamtvolumen:${trader.stats.totalVolume.toFixed(1)}M**\n` +
+                        `> ➕ **Eingenommen (Ankauf):${(trader.stats.totalEarned || 0).toFixed(1)}M**\n  ` +
+                        `> ➖ **Ausgezahlt (Verkauf):${(trader.stats.totalSpent || 0).toFixed(1)}M**\n`
                     )
                 );
 
