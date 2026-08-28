@@ -7,6 +7,40 @@ const store = require('../data/store');
 
 module.exports = async function handleSelectMenu(interaction) {
 
+    if (interaction.customId === 'vouch_stars') {
+        const trade = store.trades[String(interaction.channel.id)];
+        if (!trade) {
+            await interaction.reply({ content: '❌ Trade nicht gefunden.', flags: MessageFlags.Ephemeral });
+            return;
+        }
+        if (!trade.claimedBy) {
+            await interaction.reply({ content: '❌ Trade muss erst geclaimt werden.', flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        const existing = trade.vouchEntries?.find(v => v.reviewerId === interaction.user.id);
+        if (existing) {
+            await interaction.reply({ content: '❌ Du hast bereits bewertet!', flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        const rating = interaction.values[0];
+        const vouchModal = new ModalBuilder()
+            .setCustomId(`vouch_modal:${rating}`)
+            .setTitle(`⭐ ${rating} Sterne Bewertung`);
+
+        const vouchTextInput = new TextInputBuilder()
+            .setCustomId('vouch_text')
+            .setLabel('Schreibe deine Bewertung (optional)')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('z.B. Sehr schneller und netter Handel!')
+            .setRequired(false);
+
+        vouchModal.addComponents(new ActionRowBuilder().addComponents(vouchTextInput));
+        await interaction.showModal(vouchModal);
+        return;
+    }
+
     if (interaction.customId.startsWith('select_spawner:')) {
         const tradeType = interaction.customId.split(':')[1];
         const spawnerType = interaction.values[0];
