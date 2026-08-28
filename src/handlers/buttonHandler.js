@@ -28,58 +28,116 @@ async function logTrade(guild, trade, status) {
 
 async function forceCloseVouchWithChannel(channel, trade, guild) {
     try {
-        console.log(`🔍 forceCloseVouchWithChannel START | Trade #${trade.handNummer} | Type: ${trade.action} | Spawner: ${trade.spawnerType} | Amount: ${trade.amount}`);
+        // ⭐ GUARD: Verhindert doppelte Ausführung!
+        if (trade.closing || trade.closed) {
+            console.log(`⚠️ forceCloseVouchWithChannel bereits ausgeführt für Trade #${trade.handNummer} — skip`);
+            return;
+        }
+        trade.closing = true;
+        store.save();
 
-        if (trade.vouchEntries && trade.vouchEntries.length > 0) {
-            const vouchChannel = guild.channels.cache.get(constants.VOUCH_CHANNEL_ID);
-            if (vouchChannel) {
-                let content = `## ${trade.emoji} • Handel #${trade.handNummer}\n\n`;
-                content += `**${trade.emoji} Aktion:** ${trade.action}\n**${trade.spawnerEmoji} Spawner:** ${trade.spawnerType}\n**📦 Menge:** ${trade.amount}\n**💰 Gesamtpreis:** ${trade.totalPrice.toFixed(1)}M\n\n**👤 Kunde:** <@${trade.kundeId}>\n**🤝 Trader:** <@${trade.claimedBy}>\n\n`;
-                for (const vouch of trade.vouchEntries) {
-                    const role = vouch.reviewerId === trade.kundeId ? 'Kunde' : 'Trader';
-                    const stars = '⭐'.repeat(vouch.rating);
-                    content += `### 📝 Bewertung von ${role}\n${stars} (${vouch.rating}/5)\n> ${vouch.text}\n\n`;
-                }
-                await vouchChannel.send({ components: [new ContainerBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent(content))], flags: MessageFlags.IsComponentsV2 });
-            }
+        // ⭐ TIMEOUT CLEAREN — verhindert dass das 5-Min-Timeout nochmal feuert!
+        const channelId = String(channel.id);
+        const timeout = vouchTimeouts.get(channelId);
+        if (timeout) {
+            clearTimeout(timeout);
+            vouchTimeouts.delete(channelId);
+            console.log(`⏰ Vouch-Timeout gecleared für Channel ${channelId}`);
         }
 
+        trade.awaitingVouch = false;
+        store.save();
+
+        // === Vouch Channel ===
+        const vouchChannel = guild.channels.cache.get(constants.VOUCH_CHANNEL_ID);
+        if (vouchChannel) {
+            const customerVouch = trade.vouchEntries?.find(v => v.reviewerId === trade.kundeId);
+            const traderVouch = trade.vouchEntries?.find(v => v.reviewerId === trade.claimedBy);
+
+            const customerStars = customerVouch ? '⭐'.repeat(customerVouch.rating) : '';
+            const traderStars = traderVouch ? '⭐'.repeat(traderVouch.rating) : '';
+
+            const vouchContainer = new ContainerBuilder()
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `## ✅ Handel abgeschlossen • #${trade.handNummer}\n\n` +
+                        `**👤 Kunde:** <@${trade.kundeId}>\n` +
+                        `**🤝 Trader:** <@${trade.claimedBy || '-'}>`
+                    )
+                )
+                .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `**${trade.emoji} Geschäft:** ${trade.action}\n` +
+                        `**${trade.spawnerEmoji} Spawner:** ${trade.spawnerType}\n` +
+                        `**📦 Menge:** ${trade.amount}\n` +
+                        `**💰 Gesamtpreis:** ${trade.totalPrice.toFixed(1)}M\n`
+                    )
+                )
+                .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `### 📝 Bewertung von Kunde → Trader\n` +
+                        (customerVouch
+                            ? `${customerStars} (${customerVouch.rating}/5)\n> ${customerVouch.text}`
+                            : `— Keine Bewertung abgegeben`)
+                    )
+                )
+                .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `### 📝 Bewertung von Trader → Kunde\n` +
+                        (traderVouch
+                            ? `${traderStars} (${traderVouch.rating}/5)\n> ${traderVouch.text}`
+                            : `— Keine Bewertung abgegeben`)
+                    )
+                );
+
+            await vouchChannel.send({ components: [vouchContainer], flags: MessageFlags.IsComponentsV2 });
+        }
+
+        // === Stats updaten ===
         if (trade.claimedBy && store.traderStats) {
             if (!store.traderStats[trade.claimedBy]) {
-                store.traderStats[trade.claimedBy] = { completedTrades: 0, totalVolume: 0, totalEarned: 0, totalSpent: 0, totalStars: 0, starCount: 0 };
+                store.traderStats[trade.claimedBy] = {
+                    completedTrades: 0, totalVolume: 0, totalEarned: 0, totalSpent: 0, totalStars: 0, starCount: 0
+                };
             }
             const stats = store.traderStats[trade.claimedBy];
             stats.completedTrades += 1;
             stats.totalVolume += trade.totalPrice;
             if (trade.action === 'Ankauf') stats.totalEarned += trade.totalPrice;
             else stats.totalSpent += trade.totalPrice;
-            const cv = trade.vouchEntries?.find(v => v.reviewerId === trade.kundeId);
-            if (cv) { stats.totalStars += cv.rating; stats.starCount += 1; }
+
+            const customerVouch = trade.vouchEntries?.find(v => v.reviewerId === trade.kundeId);
+            if (customerVouch) {
+                stats.totalStars += customerVouch.rating;
+                stats.starCount += 1;
+            }
             store.save();
         }
 
-        const inventoryDelta = trade.action === 'Ankauf' ? -trade.amount : trade.amount;
-        console.log(`📦 Bestand: ${trade.spawnerType} ${inventoryDelta > 0 ? '+' : ''}${inventoryDelta}`);
-        store.adjustInventory(trade.spawnerType, inventoryDelta);
-        console.log(`📦 Neuer Wert: ${store.getInventory(trade.spawnerType)}`);
-
-        try { await store.updatePricePanel(global.client); console.log('✅ Panel aktualisiert!'); }
-        catch (err) { console.error('❌ Panel update fehlgeschlagen:', err.message); }
-
+        // === Log ===
         await logTrade(guild, trade, `✅ ABGESCHLOSSEN (${(trade.vouches || []).length}/2 Bewertungen)`);
 
-        await channel.send({ components: [new ContainerBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent('⏳ Dieses Ticket wird in **5 Sekunden** gelöscht...'))], flags: MessageFlags.IsComponentsV2 });
+        // === Ticket schließen ===
+        await channel.send({ content: `⏳ Dieses Ticket wird in **5 Sekunden** gelöscht...` });
+
+        trade.closed = true;
+        store.save();
 
         setTimeout(async () => {
             try {
                 await channel.delete();
                 delete store.trades[String(channel.id)];
                 store.save();
-                console.log(`✅ Ticket gelöscht.`);
-            } catch (err) { console.error('❌ Delete error:', err.message); }
+            } catch (err) {
+                console.log('Fehler beim Löschen:', err.message);
+            }
         }, 5000);
+
     } catch (err) {
-        console.error('❌ Error in forceCloseVouchWithChannel:', err.message);
+        console.error('Error in forceCloseVouchWithChannel:', err.message);
     }
 }
 
