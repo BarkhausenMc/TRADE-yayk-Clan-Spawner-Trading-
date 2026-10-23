@@ -112,13 +112,12 @@ container.addTextDisplayComponents(
 // ⭐ SCHLEIFE — nur die Trader-Einträge
 for (let i = 0; i < traderList.length; i++) {
     const trader = traderList[i];
-    const medal = i < 3 ? ['🥇', '🥈', '🥉'][i] : `**${i + 1}.**`;
 
     // ⭐ SECTION: MC Head Thumbnail + Name
     const section = new SectionBuilder()
         .addTextDisplayComponents(
             new TextDisplayBuilder().setContent(
-                `### ${medal} \`${trader.mcName}\`\n` +
+                `### \`${trader.mcName}\`\n` +
                 `<@${trader.member.id}>`
             )
         )
