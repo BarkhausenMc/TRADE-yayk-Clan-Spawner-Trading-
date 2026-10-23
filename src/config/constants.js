@@ -1,12 +1,18 @@
 module.exports = {
     prices: {
         Skeleton: { ankauf: 10.0, verkauf: 10.0 },
-        Creeper:  { ankauf: 10.0, verkauf: 10.0 }
+        Creeper:  { ankauf: 10.0, verkauf: 10.0 },
+        Iron_Golem: { ankauf: 10.0, verkauf: 10.0 },
+        Blaze: { ankauf: 10.0, verkauf: 10.0 },
+        Spider: { ankauf: 10.0, verkauf: 10.0 },
     },
 
     spawnerEmojis: {
         Skeleton: '💀',
-        Creeper:  '💥'
+        Creeper:  '💥',
+        Iron_Golem: '🐻‍❄️',
+        Blaze: '🔥',
+        Spider: '🕷️',
     },
 
     TRADER_ROLE_ID: process.env.TRADER_ROLE_ID,
