@@ -48,19 +48,11 @@ module.exports = async function handleModal(interaction) {
 
     let thread;
     try {
-            if (constants.TRADER_ROLE_ID) {
-                try {
-                    const members = await interaction.guild.members.fetch({ role: constants.TRADER_ROLE_ID });
-                    for (const member of members.values()) {
-                        await thread.members.add(member.id).catch(err =>
-                            console.warn(`⚠️ ${member.user.tag} nicht hinzugefügt: ${err.message}`)
-                        );
-                    }
-                    console.log(`✅ ${members.size} Trader zum Thread hinzugefügt`);
-                } catch (err) {
-                    console.error('❌ Trader-Fetch fehlgeschlagen:', err.message);
-                }
-            }
+        thread = await interaction.channel.threads.create({
+            name: `${emoji} ${action} - ${spawnerEmoji} ${spawnerType} - 📦 Menge: ${amount} - #${handNummer}`,
+            type: ChannelType.PrivateThread,
+            invitable: true
+        });
     } catch (err) {
         console.error('❌ Fehler beim Thread erstellen:', err.message);
         if (deferred) {
@@ -71,15 +63,26 @@ module.exports = async function handleModal(interaction) {
 
     await thread.members.add(interaction.user.id).catch(() => {});
 
+    // ⭐ TRADER ZU THREAD HINZUFÜGEN (korrekt gefixt)
     if (constants.TRADER_ROLE_ID) {
         try {
-            const role = await interaction.guild.roles.fetch(constants.TRADER_ROLE_ID);
-            if (role) {
-                for (const member of role.members.values()) {
-                    await thread.members.add(member.id).catch(() => {});
+            // Option A: Alle Member fetchen und nach Rolle filtern
+            const members = await interaction.guild.members.fetch();
+            const traderMembers = members.filter(m => m.roles.cache.has(constants.TRADER_ROLE_ID));
+            
+            console.log(`📋 ${traderMembers.size} Trader gefunden, füge hinzu...`);
+            
+            for (const member of traderMembers.values()) {
+                try {
+                    await thread.members.add(member.id);
+                    console.log(`✅ ${member.user.tag} zum Thread hinzugefügt`);
+                } catch (err) {
+                    console.warn(`⚠️ ${member.user.tag} nicht hinzugefügt: ${err.message}`);
                 }
             }
-        } catch (err) { console.log('Fehler beim Hinzufügen von Tradern:', err.message); }
+        } catch (err) {
+            console.error('❌ Trader-Fetch fehlgeschlagen:', err.message);
+        }
     }
 
     const tradeData = {
