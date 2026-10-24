@@ -55,7 +55,7 @@ module.exports = {
         store.recordPriceChange(spawner, typ, oldPrice, preis, interaction.user.id);
 
         const emoji = constants.spawnerEmojis[spawner] || '📦';
-        const typLabel = typ === 'ankauf' ? '🛒 Ankauf' : '💰 Verkauf';
+        const typLabel = typ === 'ankauf' ? '🛒 Kaufen' : '💰 Verkauf';
         const oldStr = oldPrice === 'Stop' ? 'GESTOPPT' : `${oldPrice.toFixed(1)}M`;
 
         await interaction.editReply({
