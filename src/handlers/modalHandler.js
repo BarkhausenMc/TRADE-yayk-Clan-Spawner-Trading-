@@ -48,11 +48,19 @@ module.exports = async function handleModal(interaction) {
 
     let thread;
     try {
-        thread = await interaction.channel.threads.create({
-            name: `${emoji} ${action} - ${spawnerEmoji} ${spawnerType} - 📦 Menge: ${amount} - #${handNummer}`,
-            type: ChannelType.PrivateThread,
-            invitable: false
-        });
+            if (constants.TRADER_ROLE_ID) {
+                try {
+                    const members = await interaction.guild.members.fetch({ role: constants.TRADER_ROLE_ID });
+                    for (const member of members.values()) {
+                        await thread.members.add(member.id).catch(err =>
+                            console.warn(`⚠️ ${member.user.tag} nicht hinzugefügt: ${err.message}`)
+                        );
+                    }
+                    console.log(`✅ ${members.size} Trader zum Thread hinzugefügt`);
+                } catch (err) {
+                    console.error('❌ Trader-Fetch fehlgeschlagen:', err.message);
+                }
+            }
     } catch (err) {
         console.error('❌ Fehler beim Thread erstellen:', err.message);
         if (deferred) {
