@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, MessageFlags } = require('discord.js')
+const { SlashCommandBuilder, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, MessageFlags } = require('discord.js');
 const constants = require('../../config/constants');
 const store = require('../../data/store');
 
@@ -19,7 +19,8 @@ module.exports = {
 
     async execute(interaction) {
         try {
-            await interaction.deferReply({ flags: 64 });
+            // Ephemeral Antwort für den Befehl-aufrufer
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         } catch (err) {
             console.log('❌ deferReply fehlgeschlagen:', err.message);
             return;
@@ -101,13 +102,15 @@ module.exports = {
 
         await interaction.editReply({ content: '✅ Ankündigung wird gesendet...' });
 
+        // ⭐ KEINE FLAGS für öffentliche Announce-Nachricht, nur allowedMentions
         const newMessage = await channel.send({
             components: [container],
-            flags: 64 | 16384,
             allowedMentions: { parse: ['roles', 'everyone', 'users'] }
         });
 
         store.setLastAnnounceMessageId(newMessage.id);
+        
+        // Erfolgsmeldung an Admin
         await interaction.editReply({ content: `✅ Ankündigung gesendet in <#${announceChannelId}>!` });
     }
 };
