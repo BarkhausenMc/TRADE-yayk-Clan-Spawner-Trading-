@@ -11,6 +11,7 @@ const DATA_FILE = path.join(__dirname, '../../data/database.json');
 let data = {
     tradeCounters: {},
     trades: {},
+    prices: {},
     priceChanges: [],
     lastAnnounceMessageId: null
 };
@@ -18,22 +19,41 @@ let data = {
 function loadData() {
     try {
         if (fs.existsSync(DATA_FILE)) {
-            data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+            const dbData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+            // Merge mit existing Struktur
+            if (dbData.tradeCounters) data.tradeCounters = dbData.tradeCounters;
+            if (dbData.trades) data.trades = dbData.trades;
+            if (dbData.prices) data.prices = dbData.prices;
+            if (dbData.priceChanges) data.priceChanges = dbData.priceChanges.slice(-50);
+            if (dbData.lastAnnounceMessageId !== undefined) data.lastAnnounceMessageId = dbData.lastAnnounceMessageId;
         }
+
+        // Init leere Arrays/Objekte
         if (!data.tradeCounters) data.tradeCounters = {};
         if (!data.trades) data.trades = {};
+        if (!data.prices) data.prices = {};
         if (!data.priceChanges) data.priceChanges = [];
         if (data.lastAnnounceMessageId === undefined) data.lastAnnounceMessageId = null;
 
-        delete data.inventory;
-        delete data.traderStats;
-        delete data.vouches;
-        delete data.lastTraderListMessageId;
+        // ⭐ Prices vom DB in constants syncken
+        syncPricesToConstants();
 
         console.log('✅ Datenbank geladen:', Object.keys(data.trades).length, 'aktive Trades');
+        console.log('📊 Gescrpte Preise:', Object.keys(data.prices).length, 'Spawner-Überschreibungen');
     } catch (err) {
         console.error('❌ Fehler beim Laden:', err);
-        data = { tradeCounters: {}, trades: {}, priceChanges: [], lastAnnounceMessageId: null };
+        data = { tradeCounters: {}, trades: {}, prices: {}, priceChanges: [], lastAnnounceMessageId: null };
+        syncPricesToConstants();
+    }
+}
+
+function syncPricesToConstants() {
+    if (!data.prices) return;
+    for (const [name, values] of Object.entries(data.prices)) {
+        if (!constants.prices[name]) continue;
+        for (const [type, value] of Object.entries(values)) {
+            constants.prices[name][type] = value;
+        }
     }
 }
 
@@ -46,14 +66,18 @@ function saveData() {
 }
 
 function getPrice(name, type) {
-    if (data.prices && data.prices[name] && data.prices[name][type] !== undefined) return data.prices[name][type];
-    return constants.prices[name]?.[type] || 0;
+    if (data.prices && data.prices[name] && data.prices[name][type] !== undefined) {
+        return data.prices[name][type];
+    }
+    const fallback = constants.prices[name]?.[type];
+    return fallback ?? 0;
 }
 
 function setPrice(name, type, value) {
     if (!data.prices) data.prices = {};
     if (!data.prices[name]) data.prices[name] = {};
     data.prices[name][type] = value;
+    // ⭐ Auch direkt in constants updaten
     if (constants.prices[name]) constants.prices[name][type] = value;
     saveData();
 }
@@ -62,6 +86,7 @@ function togglePrice(name, type) {
     if (!data.prices) data.prices = {};
     if (!data.prices[name]) data.prices[name] = {};
     const current = data.prices[name][type];
+    
     if (current === 'Stop') {
         const def = constants.prices[name]?.[type] || 0;
         data.prices[name][type] = def;
@@ -93,7 +118,7 @@ function getLastAnnounceMessageId() { return data.lastAnnounceMessageId || null;
 function setLastAnnounceMessageId(id) { data.lastAnnounceMessageId = id; saveData(); }
 
 function buildPricePanel() {
-    const priceLines = Object.entries(constants.prices).map(([name]) => {
+    const priceLines = Object.keys(constants.prices).map((name) => {
         const a = getPrice(name, 'ankauf');
         const v = getPrice(name, 'verkauf');
         const ankauf = a === 'Stop' ? 'STOP' : `${a.toFixed(1)}M`;
@@ -105,10 +130,10 @@ function buildPricePanel() {
     const container = new ContainerBuilder()
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('## :shopping_cart: • SPAWNER TRADING • :moneybag:\n*TRADE (yayk Clan Spawner Trading)*\n||*Only Trusted Trader, Faire Preise :purple_heart:*||'))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent('```\nSPAWNER      🛒KAUFEN    💰VERKAUF\n────────────────────────────────────\n' + priceLines + '\n```'))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent('```\nSPAWNER      🛒ANKAUF    💰VERKAUF\n────────────────────────────────────\n' + priceLines + '\n```'))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('💰 **VERKAUFEN** — Du **verkaufst** uns deine Spawner'))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent('🛒 **KAUFEN** — Du **kaufst** unsere Spawner'))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent('🛒 **ANKAUF** — Du **kaufst** unsere Spawner'))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('Klicke unten auf den `💰 VERKAUFEN` oder `🛒 ANKAUF` Button,\num einen Trade zu Starten.'));
 
@@ -154,6 +179,7 @@ loadData();
 module.exports = {
     get tradeCounters() { return data.tradeCounters; },
     get trades() { return data.trades; },
+    get prices() { return data.prices; },
     save: saveData, reload: loadData,
     getPrice, setPrice, togglePrice, recordPriceChange, getRecentPriceChanges,
     getPanelMessageId, setPanelMessageId, getPanelChannelId, setPanelChannelId,

@@ -3,14 +3,16 @@ const {
     MessageFlags, ContainerBuilder, TextDisplayBuilder
 } = require('discord.js');
 const constants = require('../config/constants');
+const store = require('../data/store');
 
 module.exports = async function handleSelectMenu(interaction) {
     if (!interaction.customId.startsWith('select_spawner:')) return;
 
     const tradeType = interaction.customId.split(':')[1];
     const spawnerType = interaction.values[0];
-    const priceInfo = constants.prices[spawnerType];
-    const isStopped = !priceInfo || priceInfo[tradeType] === 'Stop' || priceInfo[tradeType] === undefined;
+
+    const price = store.getPrice(spawnerType, tradeType);
+    const isStopped = price === 'Stop' || typeof price !== 'number';
 
     if (isStopped) {
         const actionLabel = tradeType === 'ankauf' ? 'ANKAUF' : 'VERKAUF';

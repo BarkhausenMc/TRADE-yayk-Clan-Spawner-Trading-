@@ -127,9 +127,15 @@ module.exports = async function handleButton(interaction) {
             const title = isAnkauf ? '🛒 • Spawner Ankauf' : '💰 • Spawner Verkauf';
             const desc = isAnkauf ? 'kaufen' : 'verkaufen';
 
-            const options = Object.entries(constants.prices).map(([name, prices]) => {
-                const stopped = prices[priceKey] === 'Stop' || prices[priceKey] === undefined;
-                return { label: `${name} Spawner`, description: stopped ? '⚠️ Derzeit GESTOPT' : `Preis: ${prices[priceKey].toFixed(1)}M`, value: name, emoji: constants.spawnerEmojis[name] || '📦' };
+            const options = Object.keys(constants.prices).map((name) => {
+                const price = store.getPrice(name, priceKey);
+                const stopped = price === 'Stop' || typeof price !== 'number';
+                return {
+                    label: `${name} Spawner`,
+                    description: stopped ? '⚠️ Derzeit GESTOPPT' : `Preis: ${price.toFixed(1)}M`,
+                    value: name,
+                    emoji: constants.spawnerEmojis[name] || '📦'
+                };
             });
 
             const container = new ContainerBuilder()
