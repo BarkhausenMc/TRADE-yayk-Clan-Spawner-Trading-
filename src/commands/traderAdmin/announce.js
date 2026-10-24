@@ -30,7 +30,7 @@ module.exports = {
             return;
         }
 
-        const titel = interaction.options.getString('titel') || '📋 Preisänderung';
+        const titel = interaction.options.getString('titel') || 'Preisänderung';
         const ping = interaction.options.getBoolean('ping') ?? false;
 
         const recentChanges = store.getRecentPriceChanges(5);
@@ -42,7 +42,7 @@ module.exports = {
 
         const changeLines = recentChanges.map(change => {
             const emoji = constants.spawnerEmojis[change.spawner] || '📦';
-            const typLabel = change.type === 'ankauf' ? '🛒 Ankauf' : '💰 Verkauf';
+            const typLabel = change.type === 'ankauf' ? '🛒 kaufen' : '💰 Verkauf';
 
             const oldStr = change.oldValue === 'Stop' ? 'GESTOPPT' : `${parseFloat(change.oldValue).toFixed(1)}M`;
             const newStr = change.newValue === 'Stop' ? 'GESTOPPT' : `${parseFloat(change.newValue).toFixed(1)}M`;
