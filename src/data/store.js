@@ -133,7 +133,7 @@ function buildPricePanel() {
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('```\nSPAWNER      🛒KAUFEN    💰VERKAUF\n────────────────────────────────────\n' + priceLines + '\n```'))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('💰 **VERKAUFEN** — Du **verkaufst** uns deine Spawner'))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent('🛒 **ANKAUF** — Du **kaufst** unsere Spawner'))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent('🛒 **KAUFEN** — Du **kaufst** unsere Spawner'))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('Klicke unten auf den `💰 VERKAUFEN` oder `🛒 KAUFEN` Button,\num einen Trade zu Starten.'));
 
