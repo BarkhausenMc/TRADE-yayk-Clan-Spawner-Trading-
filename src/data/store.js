@@ -105,10 +105,10 @@ function buildPricePanel() {
     const container = new ContainerBuilder()
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('## :shopping_cart: • SPAWNER TRADING • :moneybag:\n*TRADE (yayk Clan Spawner Trading)*\n||*Only Trusted Trader, Faire Preise :purple_heart:*||'))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent('```\nSPAWNER      🛒ANKAUF    💰VERKAUF\n────────────────────────────────────\n' + priceLines + '\n```'))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent('```\nSPAWNER      🛒KAUFEN    💰VERKAUF\n────────────────────────────────────\n' + priceLines + '\n```'))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('💰 **VERKAUFEN** — Du **verkaufst** uns deine Spawner'))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent('🛒 **ANKAUF** — Du **kaufst** unsere Spawner'))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent('🛒 **KAUFEN** — Du **kaufst** unsere Spawner'))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('Klicke unten auf den `💰 VERKAUFEN` oder `🛒 ANKAUF` Button,\num einen Trade zu Starten.'));
 
