@@ -19,7 +19,6 @@ module.exports = {
 
     async execute(interaction) {
         try {
-            // Ephemeral Antwort für den Befehl-aufrufer
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         } catch (err) {
             console.log('❌ deferReply fehlgeschlagen:', err.message);
@@ -60,10 +59,6 @@ module.exports = {
             return `### ${emoji} ${change.spawner} — ${typLabel}\n${arrow} ~~${oldStr}~~ → **${newStr}**\n*vor <t:${Math.floor(change.timestamp / 1000)}:R>*`;
         }).join('\n\n');
 
-        const rolePing = ping && constants.SPAWNER_PRICE_ROLE_ID
-            ? `<@&${constants.SPAWNER_PRICE_ROLE_ID}>\n\n`
-            : '';
-
         const container = new ContainerBuilder()
             .addTextDisplayComponents(
                 new TextDisplayBuilder().setContent(`## 📢 ${titel}\n\n`)
@@ -76,10 +71,15 @@ module.exports = {
             .addTextDisplayComponents(
                 new TextDisplayBuilder().setContent(
                     `> 📋 Unsere **Aktuellen Preise** siehst du im Trading Panel.\n` +
-                    `||Geändert von <@${interaction.user.id}>||\n` +
-                    `${rolePing}`
+                    `||Geändert von <@${interaction.user.id}>||`
                 )
             );
+
+        if (ping && constants.SPAWNER_PRICE_ROLE_ID) {
+            container.addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(`<@&${constants.SPAWNER_PRICE_ROLE_ID}>`)
+            );
+        }
 
         const announceChannelId = constants.ANNOUNCE_CHANNEL_ID || constants.CHANNEL_ID;
         const channel = interaction.guild.channels.cache.get(announceChannelId);
@@ -102,15 +102,13 @@ module.exports = {
 
         await interaction.editReply({ content: '✅ Ankündigung wird gesendet...' });
 
-        // ⭐ KEINE FLAGS für öffentliche Announce-Nachricht, nur allowedMentions
         const newMessage = await channel.send({
             components: [container],
+            flags: MessageFlags.IsComponentsV2,
             allowedMentions: { parse: ['roles', 'everyone', 'users'] }
         });
 
         store.setLastAnnounceMessageId(newMessage.id);
-        
-        // Erfolgsmeldung an Admin
         await interaction.editReply({ content: `✅ Ankündigung gesendet in <#${announceChannelId}>!` });
     }
 };
