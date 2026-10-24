@@ -22,7 +22,7 @@ module.exports = {
                 .setDescription('Ankauf oder Verkauf?')
                 .setRequired(true)
                 .addChoices(
-                    { name: '🛒 Ankauf', value: 'ankauf' },
+                    { name: '🛒 Kaufen', value: 'ankauf' },
                     { name: '💰 Verkauf', value: 'verkauf' }
                 )
         ),
