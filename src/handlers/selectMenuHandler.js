@@ -3,84 +3,47 @@ const {
     MessageFlags, ContainerBuilder, TextDisplayBuilder
 } = require('discord.js');
 const constants = require('../config/constants');
-const store = require('../data/store');
 
 module.exports = async function handleSelectMenu(interaction) {
+    if (!interaction.customId.startsWith('select_spawner:')) return;
 
-    if (interaction.customId === 'vouch_stars') {
-        const trade = store.trades[String(interaction.channel.id)];
-        if (!trade) {
-            await interaction.reply({ content: '❌ Trade nicht gefunden.', flags: MessageFlags.Ephemeral });
-            return;
-        }
-        if (!trade.claimedBy) {
-            await interaction.reply({ content: '❌ Trade muss erst geclaimt werden.', flags: MessageFlags.Ephemeral });
-            return;
-        }
+    const tradeType = interaction.customId.split(':')[1];
+    const spawnerType = interaction.values[0];
+    const priceInfo = constants.prices[spawnerType];
+    const isStopped = !priceInfo || priceInfo[tradeType] === 'Stop' || priceInfo[tradeType] === undefined;
 
-        const existing = trade.vouchEntries?.find(v => v.reviewerId === interaction.user.id);
-        if (existing) {
-            await interaction.reply({ content: '❌ Du hast bereits bewertet!', flags: MessageFlags.Ephemeral });
-            return;
-        }
-
-        const rating = interaction.values[0];
-        const vouchModal = new ModalBuilder()
-            .setCustomId(`vouch_modal:${rating}`)
-            .setTitle(`⭐ ${rating} Sterne Bewertung`);
-
-        const vouchTextInput = new TextInputBuilder()
-            .setCustomId('vouch_text')
-            .setLabel('Schreibe deine Bewertung (optional)')
-            .setStyle(TextInputStyle.Paragraph)
-            .setPlaceholder('z.B. Sehr schneller und netter Handel!')
-            .setRequired(false);
-
-        vouchModal.addComponents(new ActionRowBuilder().addComponents(vouchTextInput));
-        await interaction.showModal(vouchModal);
+    if (isStopped) {
+        const actionLabel = tradeType === 'ankauf' ? 'ANKAUF' : 'VERKAUF';
+        const errorContainer = new ContainerBuilder()
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+                `## ❌ • ${spawnerType} ${actionLabel} derzeit nicht verfügbar\n\n` +
+                `Der **${spawnerType}** Spawner ${actionLabel.toLowerCase()} ist aktuell **gestoppt**.\n` +
+                `Du bekommst ein **Ping**, wenn sich etwas bei unsere **Preise/An- und Verkauf** ändert.\n` +
+                '||** ℹ️ Du bekommst den Ping nur, wenn du die `Spawner Price` Rolle hast. **||'
+            ));
+        await interaction.update({ components: [errorContainer], flags: MessageFlags.IsComponentsV2 });
         return;
     }
 
-    if (interaction.customId.startsWith('select_spawner:')) {
-        const tradeType = interaction.customId.split(':')[1];
-        const spawnerType = interaction.values[0];
-        const priceInfo = constants.prices[spawnerType];
-        const isStopped = !priceInfo || priceInfo[tradeType] === 'Stop' || priceInfo[tradeType] === undefined;
+    const actionWord = tradeType === 'ankauf' ? 'Ankauf' : 'Verkauf';
+    const emoji = tradeType === 'ankauf' ? '🛒' : '💰';
 
-        if (isStopped) {
-            const actionLabel = tradeType === 'ankauf' ? 'ANKAUF' : 'VERKAUF';
-            const errorContainer = new ContainerBuilder()
-                .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-                    `## ❌ • ${spawnerType} ${actionLabel} derzeit nicht verfügbar\n\n` +
-                    `Der **${spawnerType}** Spawner ${actionLabel.toLowerCase()} ist aktuell **gestoppt**.\n` +
-                    `Du bekommst ein **Ping**, wenn sich etwas bei unsere **Preise/An- und Verkauf** ändert.\n` +
-                    '||** ℹ️ Du bekommst den Ping nur, wenn du die `Spawner Price` Rolle hast. **||'
-                ));
-            await interaction.update({ components: [errorContainer], flags: MessageFlags.IsComponentsV2 });
-            return;
-        }
+    const modal = new ModalBuilder()
+        .setCustomId(`trade_modal:${tradeType}:${spawnerType}`)
+        .setTitle(`${emoji} ${spawnerType} ${actionWord}`);
 
-        const price = priceInfo[tradeType];
-        const actionWord = tradeType === 'ankauf' ? 'Ankauf' : 'Verkauf';
-        const emoji = tradeType === 'ankauf' ? '🛒' : '💰';
+    const ingameNameInput = new TextInputBuilder()
+        .setCustomId('ingame_name').setLabel('Wie lautet dein Ingame-Name?')
+        .setStyle(TextInputStyle.Short).setPlaceholder('z.B. Steve').setRequired(true);
 
-        const modal = new ModalBuilder()
-            .setCustomId(`trade_modal:${tradeType}:${spawnerType}`)
-            .setTitle(`${emoji} ${spawnerType} ${actionWord}`);
+    const amountInput = new TextInputBuilder()
+        .setCustomId('amount')
+        .setLabel(tradeType === 'ankauf' ? 'Wie viele Spawner möchtest du kaufen?' : 'Wie viele Spawner möchtest du verkaufen?')
+        .setStyle(TextInputStyle.Short).setPlaceholder('z.B. 3').setRequired(true);
 
-        const ingameNameInput = new TextInputBuilder()
-            .setCustomId('ingame_name').setLabel('Wie lautet dein Ingame-Name?')
-            .setStyle(TextInputStyle.Short).setPlaceholder('z.B. Steve').setRequired(true);
-
-        const amountInput = new TextInputBuilder()
-            .setCustomId('amount')
-            .setLabel(tradeType === 'ankauf' ? 'Wie viele Spawner möchtest du kaufen?' : 'Wie viele Spawner möchtest du verkaufen?')
-            .setStyle(TextInputStyle.Short).setPlaceholder('z.B. 3').setRequired(true);
-
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(ingameNameInput),
-            new ActionRowBuilder().addComponents(amountInput)
-        );
-        await interaction.showModal(modal);
-    }
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(ingameNameInput),
+        new ActionRowBuilder().addComponents(amountInput)
+    );
+    await interaction.showModal(modal);
 };

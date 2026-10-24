@@ -16,8 +16,8 @@ const MOB_ID_MAP = {
 
 async function pushPricesToApi() {
     if (!API_URL || !API_TOKEN) {
-        return { 
-            success: false, 
+        return {
+            success: false,
             error: 'PARTNER_API_URL oder PARTNER_API_TOKEN nicht gesetzt',
             shortError: 'API-Konfiguration fehlt'
         };
@@ -31,7 +31,6 @@ async function pushPricesToApi() {
         const ankauf = store.getPrice(botName, 'ankauf');
         const verkauf = store.getPrice(botName, 'verkauf');
 
-        // ⭐ GETAUSCHT: ankauf = buy, verkauf = sell
         const buyPrice  = ankauf === 'Stop' ? null : Math.round(ankauf * 1_000_000);
         const sellPrice = verkauf === 'Stop' ? null : Math.round(verkauf * 1_000_000);
 
@@ -44,7 +43,6 @@ async function pushPricesToApi() {
 
     try {
         console.log('📡 API-Call: POST', API_URL);
-        console.log('📦 Payload:', JSON.stringify({ offers }, null, 2));
 
         const response = await fetch(API_URL, {
             method: 'POST',
@@ -62,14 +60,13 @@ async function pushPricesToApi() {
 
         if (!response.ok) {
             if (responseText.includes('cloudflare') || responseText.includes('Just a moment') || response.status === 403) {
-                console.log('🔒 Cloudflare Response (erste 500 chars):', responseText.substring(0, 500));
                 return {
                     success: false,
                     error: `Cloudflare Block (${response.status})`,
                     shortError: `⚠️ Cloudflare blockt (${response.status}) – Team kontaktieren`
                 };
             }
-            
+
             return {
                 success: false,
                 error: `HTTP ${response.status}: ${responseText.substring(0, 200)}`,
@@ -77,21 +74,18 @@ async function pushPricesToApi() {
             };
         }
 
-        let result = {};
-        try { result = JSON.parse(responseText); } catch (_) {}
-
         const pushed = offers.length;
-        return { 
-            success: true, 
-            pushed, 
+        return {
+            success: true,
+            pushed,
             skipped: Object.keys(MOB_ID_MAP).length - pushed,
             shortSuccess: `✅ ${pushed} Spawner synchronisiert`
         };
 
     } catch (err) {
         console.error('❌ API-Call failed:', err.message);
-        return { 
-            success: false, 
+        return {
+            success: false,
             error: err.message,
             shortError: `Netzwerkfehler: ${err.code || 'unknown'}`
         };

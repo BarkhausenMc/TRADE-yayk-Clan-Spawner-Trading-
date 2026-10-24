@@ -2,7 +2,6 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = function buildActionButtonRow(data) {
     if (data.closed || data.cancelled) return null;
-    if (data.awaitingVouch) return null;
 
     if (data.claimedBy) {
         return new ActionRowBuilder().addComponents(

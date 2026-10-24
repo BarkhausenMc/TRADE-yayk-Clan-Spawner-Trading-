@@ -1,12 +1,6 @@
 const {
     Client,
     GatewayIntentBits,
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
-    ContainerBuilder,
-    TextDisplayBuilder,
-    SeparatorBuilder,
     MessageFlags,
     SlashCommandBuilder,
     REST,
@@ -16,13 +10,11 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 
-const constants = require('./src/config/constants');
 const store = require('./src/data/store');
 const handleButton = require('./src/handlers/buttonHandler');
 const handleSelectMenu = require('./src/handlers/selectMenuHandler');
 const handleModal = require('./src/handlers/modalHandler');
 
-// ⭐ COMMANDS AUS ORDNER LADEN
 const commandMap = new Map();
 const commandPath = path.join(__dirname, 'src/commands');
 if (fs.existsSync(commandPath)) {
@@ -45,18 +37,7 @@ const commands = [
         .addSubcommand(sub =>
             sub.setName('spawner')
                 .setDescription('Sendet das Spawner Trading Panel in den aktuellen Channel')
-        ),
-    new SlashCommandBuilder()
-        .setName('trader-stats')
-        .setDescription('Zeigt die Handelsstatistiken eines Traders an')
-        .addUserOption(opt =>
-            opt.setName('trader')
-                .setDescription('Welcher Trader? (Leer = dich selbst)')
-                .setRequired(false)
-        ),
-    new SlashCommandBuilder()
-        .setName('trader-top')
-        .setDescription('Zeigt die Top 10 Trader nach abgeschlossenen Trades')
+        )
 ];
 
 for (const cmd of commandMap.values()) {
@@ -74,13 +55,12 @@ const client = new Client({
 });
 global.client = client;
 
-// === READY EVENT ===
 client.once('ready', async () => {
     console.log('Bot ist online!');
 
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        
+
         await rest.put(
             Routes.applicationGuildCommands(client.user.id, process.env.GUILD_ID),
             { body: commands.map(c => c.toJSON()) }
@@ -91,12 +71,8 @@ client.once('ready', async () => {
     }
 });
 
-// === INTERACTION HANDLER ===
 client.on('interactionCreate', async (interaction) => {
     try {
-        // ==========================================
-        // SLASH COMMANDS
-        // ==========================================
         if (interaction.isChatInputCommand()) {
 
             if (commandMap.has(interaction.commandName)) {
@@ -144,92 +120,8 @@ client.on('interactionCreate', async (interaction) => {
                     return;
                 }
             }
-
-            if (interaction.commandName === 'trader-stats') {
-                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-                
-                const targetUser = interaction.options.getUser('trader') || interaction.user;
-                const stats = store.traderStats?.[targetUser.id];
-
-                if (!stats || stats.completedTrades === 0) {
-                    await interaction.editReply({ content: `❌ <@${targetUser.id}> hat noch keine abgeschlossenen Trades.` });
-                    return;
-                }
-
-                const avgStars = stats.starCount > 0 ? (stats.totalStars / stats.starCount).toFixed(1) : 'N/A';
-
-                const statsContainer = new ContainerBuilder()
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent(
-                            `## 📊 • Trader Statistiken\n\n` +
-                            `**🤝 Trader:** <@${targetUser.id}>\n\n` +
-                            `**✅ Abgeschlossene Trades:** ${stats.completedTrades}\n` +
-                            `**⭐ Durchschnittliche Bewertung:** ${avgStars} / 5\n\n`
-                        )
-                    )
-                    .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent(
-                            `## 💸 • Umsatz\n` +
-                            `**💰 Gesamtvolumen:** ${(stats.totalVolume || 0).toFixed(1)}M\n` +
-                            `**➕ Eingenommen (Ankauf):** ${(stats.totalEarned || 0).toFixed(1)}M\n` +
-                            `**➖ Ausgezahlt (Verkauf):** ${(stats.totalSpent || 0).toFixed(1)}M\n`
-                        )
-                    );
-
-                await interaction.editReply({ components: [statsContainer], flags: MessageFlags.IsComponentsV2 });
-                return;
-            }
-
-            // --- /trader-top ---
-if (interaction.commandName === 'trader-top') {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-    // NULL-SCHUTZ
-    if (!store.traderStats) {
-        await interaction.editReply({ content: '❌ Interne Fehler - Trader-Stats nicht geladen.' });
-        return;
-    }
-
-    const allStats = Object.entries(store.traderStats)
-        .filter(([, s]) => s && s.completedTrades > 0 && s.starCount > 0) // Nur wer bewertet wurde
-        .map(([userId, s]) => ({
-            userId,
-            ...s,
-            avgRating: s.starCount > 0 ? (s.totalStars / s.starCount) : 0 // Durchschnitt berechnen
-        }))
-        .sort((a, b) => b.avgRating - a.avgRating) // SORTIERUNG NACH DURCHSCHNITT (Höchste zuerst)
-        .slice(0, 10); // Top 10
-
-    if (allStats.length === 0) {
-        await interaction.editReply({ content: '❌ Noch keine Bewertungen vorhanden.' });
-        return;
-    }
-
-    const medals = ['🥇', '🥈', '🥉'];
-    const leaderboard = allStats.map(({ userId, completedTrades, avgRating, totalVolume }, i) => {
-        const medal = medals[i] || `**${i + 1}.**`;
-        // Formatierung: 2 Dezimalstellen für Sterne
-        return `${medal} <@${userId}> — ⭐ ${avgRating.toFixed(2)} | 🤝 ${completedTrades} Trades | 💵 ${(totalVolume || 0).toFixed(1)}M`;
-    }).join('\n');
-
-    const topContainer = new ContainerBuilder()
-        .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(
-                `## 🏆 • Top Trader nach Bewertung ⭐\n\n` +
-                `Sortiert nach durchschnittlicher Bewertung (min. 1 Trade)\n\n` +
-                leaderboard
-            )
-        );
-
-    await interaction.editReply({ components: [topContainer], flags: MessageFlags.IsComponentsV2 });
-    return;
-}
         }
 
-        // ==========================================
-        // BUTTONS, SELECT MENUS, MODALS
-        // ==========================================
         if (interaction.isButton()) {
             await handleButton(interaction);
         } else if (interaction.isStringSelectMenu()) {

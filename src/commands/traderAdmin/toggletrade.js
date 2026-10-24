@@ -11,8 +11,10 @@ module.exports = {
                 .setDescription('Welcher Spawner?')
                 .setRequired(true)
                 .addChoices(
-                    { name: 'Skeleton 💀', value: 'Skeleton' },
-                    { name: 'Creeper 💥', value: 'Creeper' }
+                    ...Object.keys(constants.prices).map(name => ({
+                        name: `${constants.spawnerEmojis[name] || '📦'} ${name}`,
+                        value: name
+                    }))
                 )
         )
         .addStringOption(opt =>
@@ -26,11 +28,10 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        // ⭐ SOFORT DEFERREPLY (BEVOR ALLES ANDERE!)
         try {
             await interaction.deferReply({ flags: 64 });
         } catch (err) {
-            console.log('❌ deferReply fehlgeschlagen (Interaction abgelaufen?):', err.message);
+            console.log('❌ deferReply fehlgeschlagen:', err.message);
             return;
         }
 

@@ -1,5 +1,5 @@
 const {
-    ActionRowBuilder, ContainerBuilder, TextDisplayBuilder,
+    ContainerBuilder, TextDisplayBuilder,
     MessageFlags, ChannelType
 } = require('discord.js');
 const constants = require('../config/constants');
@@ -8,65 +8,21 @@ const buildTradeContainer = require('../utils/buildTradeContainer');
 const buildActionButtonRow = require('../utils/buildActionButtonRow');
 
 module.exports = async function handleModal(interaction) {
-
-    // === VOUCH MODAL ===
-    if (interaction.customId.startsWith('vouch_modal:')) {
-        const trade = store.trades[String(interaction.channel.id)];
-        if (!trade) {
-            await interaction.reply({ content: '❌ Trade nicht gefunden.', flags: MessageFlags.Ephemeral }).catch(() => {});
-            return;
-        }
-
-        await interaction.deferUpdate().catch(() => {});
-
-        const rating = parseInt(interaction.customId.split(':')[1]);
-        const text = interaction.fields.getTextInputValue('vouch_text') || 'Keine Bewertung geschrieben.';
-
-        trade.vouchEntries = trade.vouchEntries || [];
-        
-        // Doppelte Bewertung verhindern
-        if (trade.vouchEntries.find(v => v.reviewerId === interaction.user.id)) {
-            return;
-        }
-        
-        trade.vouchEntries.push({ reviewerId: interaction.user.id, rating, text, timestamp: Date.now() });
-        store.save();
-
-        console.log(`📝 Vouch erhalten von ${interaction.user.id}: ${rating} Sterne — Trade #${trade.handNummer}`);
-
-        const customerVouch = trade.vouchEntries.find(v => v.reviewerId === trade.kundeId);
-        const traderVouch = trade.vouchEntries.find(v => v.reviewerId === trade.claimedBy);
-
-        if (customerVouch && traderVouch) {
-            console.log(`✅ Beide Vouches erhalten! Schließe Trade #${trade.handNummer}...`);
-            const thankContainer = new ContainerBuilder()
-                .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-                    `## ✅ Beide Bewertungen erhalten!\n\nDanke an beide Parteien.\nDas Ticket wird jetzt geschlossen.`
-                ));
-            await interaction.channel.send({ components: [thankContainer], flags: MessageFlags.IsComponentsV2 }).catch(() => {});
-
-            const buttonHandler = require('./buttonHandler');
-            await buttonHandler.forceCloseVouchWithChannel(interaction.channel, trade, interaction.guild);
-        } else {
-            const remainingRole = !customerVouch ? 'Kunde' : 'Trader';
-            const waitContainer = new ContainerBuilder()
-                .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-                    `## ✅ Bewertung erhalten\n\nDanke für deine **${rating}-Sterne** Bewertung!\nWarte noch auf die Bewertung vom **${remainingRole}**...\n\n⏱️ *Ticket schließt automatisch in 5 Minuten.*`
-                ));
-            await interaction.channel.send({ components: [waitContainer], flags: MessageFlags.IsComponentsV2 }).catch(() => {});
-        }
-        return;
-    }
-
-    // === TRADE MODAL ===
     if (!interaction.customId.startsWith('trade_modal:')) return;
 
-    // ⚡ SOFORT deferReply — bevor irgendetwas anderes gemacht wird!
     const deferred = await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
 
     const parts = interaction.customId.split(':');
     const tradeType = parts[1];
     const spawnerType = parts[2];
+
+    const pricePerUnit = store.getPrice(spawnerType, tradeType);
+    if (pricePerUnit === 'Stop' || typeof pricePerUnit !== 'number') {
+        if (deferred) {
+            await interaction.editReply({ content: `❌ Der ${spawnerType} ${tradeType === 'ankauf' ? 'Ankauf' : 'Verkauf'} ist derzeit gestoppt.` }).catch(() => {});
+        }
+        return;
+    }
 
     const ingameName = interaction.fields.getTextInputValue('ingame_name');
     const amount = interaction.fields.getTextInputValue('amount');
@@ -88,7 +44,6 @@ module.exports = async function handleModal(interaction) {
     const emoji = tradeType === 'ankauf' ? '🛒' : '💰';
     const action = tradeType === 'ankauf' ? 'Ankauf' : 'Verkauf';
     const spawnerEmoji = constants.spawnerEmojis[spawnerType] || '❌';
-    const pricePerUnit = constants.prices[spawnerType][tradeType];
     const totalPrice = pricePerUnit * parsedAmount;
 
     let thread;
@@ -120,8 +75,7 @@ module.exports = async function handleModal(interaction) {
     }
 
     const tradeData = {
-        messageId: null, claimedBy: null, closed: false, cancelled: false,
-        awaitingVouch: false, vouches: [], vouchEntries: [],
+        messageId: null, claimedBy: null, closed: false, cancelled: false, closing: false,
         kundeId: interaction.user.id, ingameName, spawnerType, spawnerEmoji,
         amount: parsedAmount, pricePerUnit, totalPrice, handNummer, emoji, action
     };
@@ -137,7 +91,6 @@ module.exports = async function handleModal(interaction) {
         } catch (err) { console.log('Fehler beim Trader-Ping:', err.message); }
     }
 
-    // Log
     if (constants.LOG_CHANNEL_ID) {
         try {
             const logContainer = new ContainerBuilder()
@@ -149,12 +102,10 @@ module.exports = async function handleModal(interaction) {
         } catch (err) { console.log('Fehler beim Loggen:', err.message); }
     }
 
-    // ⚡ TRADE SPEICHERN — DAS IST DAS WICHTIGSTE!
     tradeData.messageId = tradeMsg.id;
     store.trades[String(thread.id)] = tradeData;
     store.save();
     console.log('✅ Trade gespeichert unter ID:', String(thread.id));
-    console.log('📦 Verfügbare Trade Keys:', Object.keys(store.trades));
 
     if (deferred) {
         await interaction.editReply({

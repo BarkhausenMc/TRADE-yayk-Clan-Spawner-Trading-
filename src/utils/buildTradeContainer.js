@@ -1,20 +1,12 @@
 const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder } = require('discord.js');
+
 module.exports = function buildTradeContainer(data) {
     let statusText;
-    
+
     if (data.cancelled) {
         statusText = `❌ **Trade abgebrochen!**`;
     } else if (data.closed) {
         statusText = `✅ **Trade abgeschlossen!**`;
-    } else if (data.awaitingVouch) {
-        const customerRated = data.vouches && data.vouches.includes(data.kundeId);
-        const traderRated = data.vouches && data.claimedBy && data.vouches.includes(data.claimedBy);
-        
-        statusText = 
-            `⏳ **Warte auf Bewertungen**\n\n` +
-            `👤 **Kunde:** ${customerRated ? '✅ Bewertet' : '⏳ Ausstehend'}\n` +
-            `🤝 **Trader:** ${traderRated ? '✅ Bewertet' : '⏳ Ausstehend'}\n\n` +
-            `*Das Ticket schließt automatisch in 5 Minuten.*`;
     } else if (data.claimedBy) {
         statusText = `🔒 Geclaimt von <@${data.claimedBy}>`;
     } else {

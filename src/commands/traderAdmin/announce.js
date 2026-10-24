@@ -1,7 +1,6 @@
-const { SlashCommandBuilder, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const constants = require('../../config/constants');
 const store = require('../../data/store');
-const { pushPricesToApi } = require('../../utils/partnerApi');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -44,10 +43,10 @@ module.exports = {
         const changeLines = recentChanges.map(change => {
             const emoji = constants.spawnerEmojis[change.spawner] || '📦';
             const typLabel = change.type === 'ankauf' ? '🛒 Ankauf' : '💰 Verkauf';
-            
+
             const oldStr = change.oldValue === 'Stop' ? 'GESTOPPT' : `${parseFloat(change.oldValue).toFixed(1)}M`;
             const newStr = change.newValue === 'Stop' ? 'GESTOPPT' : `${parseFloat(change.newValue).toFixed(1)}M`;
-            
+
             let arrow;
             if (change.newValue === 'Stop') arrow = '🔴';
             else if (change.oldValue === 'Stop') arrow = '🟢';
@@ -56,7 +55,7 @@ module.exports = {
                 else if (change.newValue < change.oldValue) arrow = '📉';
                 else arrow = '➡️';
             } else arrow = '➡️';
-            
+
             return `### ${emoji} ${change.spawner} — ${typLabel}\n${arrow} ~~${oldStr}~~ → **${newStr}**\n*vor <t:${Math.floor(change.timestamp / 1000)}:R>*`;
         }).join('\n\n');
 
@@ -104,25 +103,11 @@ module.exports = {
 
         const newMessage = await channel.send({
             components: [container],
-            flags: MessageFlags.IsComponentsV2,
+            flags: 64 | 16384,
             allowedMentions: { parse: ['roles', 'everyone', 'users'] }
         });
 
         store.setLastAnnounceMessageId(newMessage.id);
-
-        // === PREISE AN PARTNER-API PUSHEN ===
-        const apiResult = await pushPricesToApi();
-
-        if (apiResult.success) {
-            console.log(apiResult.shortSuccess);
-            await interaction.editReply({
-                content: `✅ Ankündigung gesendet in <#${announceChannelId}>!\n${apiResult.shortSuccess}`
-            });
-        } else {
-            console.error('❌ API Push:', apiResult.error);
-            await interaction.editReply({
-                content: `✅ Ankündigung gesendet in <#${announceChannelId}>!\n⚠️ ${apiResult.shortError}`
-            });
-        }
+        await interaction.editReply({ content: `✅ Ankündigung gesendet in <#${announceChannelId}>!` });
     }
 };

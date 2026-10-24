@@ -9,8 +9,10 @@ const constants = require('../config/constants');
 const DATA_FILE = path.join(__dirname, '../../data/database.json');
 
 let data = {
-    tradeCounters: {}, trades: {}, vouches: [], traderStats: {},
-    priceChanges: [], inventory: {}, lastAnnounceMessageId: null
+    tradeCounters: {},
+    trades: {},
+    priceChanges: [],
+    lastAnnounceMessageId: null
 };
 
 function loadData() {
@@ -20,22 +22,19 @@ function loadData() {
         }
         if (!data.tradeCounters) data.tradeCounters = {};
         if (!data.trades) data.trades = {};
-        if (!data.vouches) data.vouches = [];
-        if (!data.traderStats) data.traderStats = {};
         if (!data.priceChanges) data.priceChanges = [];
-        if (!data.inventory) data.inventory = {};
         if (data.lastAnnounceMessageId === undefined) data.lastAnnounceMessageId = null;
-        for (const name of Object.keys(constants.prices)) {
-            if (data.inventory[name] === undefined) data.inventory[name] = 0;
-        }
+
+        delete data.inventory;
+        delete data.traderStats;
+        delete data.vouches;
+        delete data.lastTraderListMessageId;
+
         console.log('✅ Datenbank geladen:', Object.keys(data.trades).length, 'aktive Trades');
-        console.log('📊 Trader-Stats:', Object.keys(data.traderStats).length, 'Trader erfasst');
-        console.log('📦 Bestand:', JSON.stringify(data.inventory));
     } catch (err) {
         console.error('❌ Fehler beim Laden:', err);
-        data = { tradeCounters: {}, trades: {}, vouches: [], traderStats: {}, priceChanges: [], inventory: {}, lastAnnounceMessageId: null };
+        data = { tradeCounters: {}, trades: {}, priceChanges: [], lastAnnounceMessageId: null };
     }
-    if (data.lastTraderListMessageId === undefined) data.lastTraderListMessageId = null;
 }
 
 function saveData() {
@@ -86,25 +85,12 @@ function getRecentPriceChanges(minutes) {
     return data.priceChanges.filter(c => c.timestamp >= cutoff);
 }
 
-function getInventory(name) { return data.inventory[name] || 0; }
-
-function adjustInventory(name, amount) {
-    if (!data.inventory) data.inventory = {};
-    if (data.inventory[name] === undefined) data.inventory[name] = 0;
-    data.inventory[name] += amount;
-    if (data.inventory[name] < 0) data.inventory[name] = 0;
-    saveData();
-}
-
-function getAllInventory() { return data.inventory || {}; }
 function getPanelMessageId() { return data.panelMessageId || null; }
 function setPanelMessageId(id) { data.panelMessageId = id; saveData(); }
 function getPanelChannelId() { return data.panelChannelId || null; }
 function setPanelChannelId(id) { data.panelChannelId = id; saveData(); }
 function getLastAnnounceMessageId() { return data.lastAnnounceMessageId || null; }
 function setLastAnnounceMessageId(id) { data.lastAnnounceMessageId = id; saveData(); }
-function getLastTraderListMessageId() { return data.lastTraderListMessageId || null; }
-function setLastTraderListMessageId(messageId) { data.lastTraderListMessageId = messageId; saveData(); }
 
 function buildPricePanel() {
     const priceLines = Object.entries(constants.prices).map(([name]) => {
@@ -116,18 +102,10 @@ function buildPricePanel() {
         return `${emoji} ${name.padEnd(12)} ${ankauf.padStart(10)}  ${verkauf.padStart(10)}`;
     }).join('\n');
 
-    const stockLines = Object.entries(constants.prices).map(([name]) => {
-        const stock = getInventory(name);
-        const emoji = constants.spawnerEmojis[name] || '📦';
-        return `${emoji} ${name}: \`${stock}\` Stück`;
-    }).join('\n');
-
     const container = new ContainerBuilder()
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('## :shopping_cart: • SPAWNER TRADING • :moneybag:\n*TRADE (yayk Clan Spawner Trading)*\n||*Only Trusted Trader, Faire Preise :purple_heart:*||'))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('```\nSPAWNER      🛒ANKAUF    💰VERKAUF\n────────────────────────────────────\n' + priceLines + '\n```'))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`### 📦 • AKTUELLER BESTAND\n${stockLines}`))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('💰 **VERKAUFEN** — Du **verkaufst** uns deine Spawner'))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('🛒 **ANKAUF** — Du **kaufst** unsere Spawner'))
@@ -144,26 +122,29 @@ function buildPricePanel() {
 async function updatePricePanel(client) {
     const messageId = getPanelMessageId();
     const channelId = getPanelChannelId();
-    
+
     if (!messageId || !channelId) return;
-    
+
     try {
         const channel = await client.channels.fetch(channelId);
         if (!channel) return;
-        
+
         const msg = await channel.messages.fetch(messageId);
         const components = buildPricePanel();
         await msg.edit({ components, flags: MessageFlags.IsComponentsV2 });
         console.log('✅ Price Panel auto-updated!');
     } catch (err) {
-        // Wenn Message nicht gefunden -> Neues Panel erstellen
         console.log('⚠️ Panel nicht gefunden, erstelle neues...');
-        const channel = await client.channels.fetch(channelId);
-        if (channel) {
-            const components = buildPricePanel();
-            const newMsg = await channel.send({ components, flags: MessageFlags.IsComponentsV2 });
-            store.setPanelMessageId(newMsg.id);
-            console.log('✅ Neues Panel erstellt!');
+        try {
+            const channel = await client.channels.fetch(channelId);
+            if (channel) {
+                const components = buildPricePanel();
+                const newMsg = await channel.send({ components, flags: MessageFlags.IsComponentsV2 });
+                setPanelMessageId(newMsg.id);
+                console.log('✅ Neues Panel erstellt!');
+            }
+        } catch (err2) {
+            console.error('❌ Panel konnte nicht neu erstellt werden:', err2.message);
         }
     }
 }
@@ -173,15 +154,9 @@ loadData();
 module.exports = {
     get tradeCounters() { return data.tradeCounters; },
     get trades() { return data.trades; },
-    get vouches() { return data.vouches; },
-    get traderStats() { return data.traderStats; },
-    get inventory() { return data.inventory; },
     save: saveData, reload: loadData,
     getPrice, setPrice, togglePrice, recordPriceChange, getRecentPriceChanges,
     getPanelMessageId, setPanelMessageId, getPanelChannelId, setPanelChannelId,
     getLastAnnounceMessageId, setLastAnnounceMessageId,
-    buildPricePanel, updatePricePanel,
-    getInventory, adjustInventory, getAllInventory,
-    getLastTraderListMessageId,
-    setLastTraderListMessageId,
+    buildPricePanel, updatePricePanel
 };
